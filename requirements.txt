@@ -1,0 +1,10 @@
+pyyaml >= 5.3
+numpy >= 1.18.1
+scipy >= 1.4.1
+pandas
+line_profiler >= 3.0.2
+pytest
+pytest-regressions
+pytest-cov
+flake8
+pre-commit
