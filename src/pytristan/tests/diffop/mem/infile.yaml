@@ -1,0 +1,10 @@
+geometries:
+  - cylindrical
+  - cartesian
+
+discretisations:
+  findiff: 10
+  chebyshev: 10
+
+checks:
+  - check-memory-management

@@ -34,9 +34,7 @@ class DiffMat:
         stencil_shift = -(stencil_len_central - 1) // 2
 
         if self.npoints < stencil_len:
-            raise ValueError(
-                'Number of grid points too low for accuracy required'
-            )
+            raise ValueError('Number of grid points too low for accuracy required')
 
         # Build diagonal skeleton
         coeffs = self.fin_coeffs(order, stencil_len_central, stencil_shift)
