@@ -1,0 +1,60 @@
+version: 2.1
+
+executors:
+  python-latest:
+    docker:
+      - image: circleci/python:latest
+
+commands:
+  install-dependencies:
+    steps:
+      - run:
+          name: Install dependencies and create virtual environment
+          command: |
+            python -m pip install --upgrade pip
+            python -m pip install --user virtualenv
+            python -m venv trenv && . trenv/bin/activate
+            if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+  build:
+    steps:
+      - run:
+          name: Install PyTristan
+          command: |
+            . trenv/bin/activate
+            pip install -e ".[all]"
+
+  pre-commit-hooks:
+    steps:
+      - run:
+          name: Run pre-commit hooks
+          command: |
+            . trenv/bin/activate
+            pre-commit run --show-diff-on-failure --color=always --all-files
+
+  test:
+    steps:
+      - run:
+          name: Run tests
+          command: |
+            . trenv/bin/activate
+            pytest
+
+jobs:
+  build-and-test:
+    executor: python-latest
+    steps:
+      - checkout
+      - install-dependencies
+      - build
+      - pre-commit-hooks
+      - test
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - build-and-test:
+          filters:
+            branches:
+              only: master
