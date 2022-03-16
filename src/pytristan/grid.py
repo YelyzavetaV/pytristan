@@ -17,7 +17,14 @@ import operator
 import numpy as np
 from ._manager import ObjectManager
 
-__all__ = ["Grid", "cheb", "get_grid"]
+__all__ = [
+    "Grid",
+    "cheb",
+    "get_grid",
+    "drop_grid",
+    "drop_last_grid",
+    "_get_grid_manager",
+]
 
 
 def cheb(xmin, xmax, npts):
@@ -245,6 +252,29 @@ def _get_grid_manager(_grid_manager_instance=ObjectManager()):
     return _grid_manager_instance
 
 
+def drop_grid(num=None, nitem=0):
+
+    grid_manager = _get_grid_manager()
+
+    if num is None:
+        if nitem == 0:
+            warnings.warn("No grids were dropped because num=None and nitem=0")
+        nums = grid_manager.nums()
+        drops = nums[-1 : -nitem - 1 : -1]
+    else:
+        if nitem > 0:
+            raise ValueError("num can only be used alongside nitem=0")
+        else:
+            drops = [num] if isinstance(num, int) else num
+
+    for drop in drops:
+        delattr(grid_manager, str(drop))
+
+
+def drop_last_grid():
+    drop_grid(nitem=1)
+
+
 def get_grid(
     num=None,
     arrs=None,
@@ -341,8 +371,8 @@ def get_grid(
     grid_manager = _get_grid_manager()
 
     if num is None:
-        ids = grid_manager.ids()
-        num = max(ids) + 1 if ids else 0
+        nums = grid_manager.nums()
+        num = max(nums) + 1 if nums else 0
 
     grid = getattr(grid_manager, str(num), None)
 
