@@ -253,26 +253,38 @@ def _get_grid_manager(_grid_manager_instance=ObjectManager()):
 
 
 def drop_grid(num=None, nitem=0):
-    """
-    Allows to remove (drop) one or more grids from the grid manager. num or
-    nitem != 0 should not be both passed as arguments in the same call to the
-    function (see examples below).
+    """Allows to remove (drop) one or more grids from the grid manager.
 
     Parameters
     ----------
-    num: int or list of int
+    num: int or array-like of int
         If provided, indicates the identifiers of the grids to be dropped from
         the list of grids stored in the grid manager. Default is None.
     nitem: int
         Number of grids to drop starting from the end of the list of grids
         stored in the grid manager. Default is 0.
 
+    Notes
+    -----
+    num or nitem != 0 should not be both passed as arguments in the same
+    call to the function (see examples below).
+
     Examples
     --------
+    >>> grid_manager = _get_grid_manager()
+    >>> print(grid_manager.nums())
+    [0, 1, 2, 3, 4]
     >>> drop_grid(num=[0, 3]) # drops grids with identifiers 0 and 3.
-    >>> drop_grid(3) # drops grid with identifier 3.
-    >>> drop_grid(nitem=2) # drops the last two grids from the grid manager.
+    >>> print(grid_manager.nums())
+    [1, 2, 4]
+    >>> drop_grid(2) # drops grid with identifier 3.
+    >>> print(grid_manager.nums())
+    [1, 4]
     >>> drop_grid(num=3, nitem=2) # raises an error
+    ValueError: num can only be used alongside nitem=0
+    >>> drop_grid(nitem=2) # drops the last two grids from the grid manager.
+    >>> print(grid_manager.nums())
+    []
     """
 
     grid_manager = _get_grid_manager()
@@ -285,17 +297,14 @@ def drop_grid(num=None, nitem=0):
     else:
         if nitem > 0:
             raise ValueError("num can only be used alongside nitem=0")
-        else:
-            drops = [num] if isinstance(num, int) else num
+        drops = [num] if isinstance(num, int) else num
 
     for drop in drops:
         delattr(grid_manager, str(drop))
 
 
 def drop_last_grid():
-    """
-    Shortcut for dropping the last grid contained in the grid manager.
-    """
+    """Shortcut for dropping the last grid contained in the grid manager."""
 
     drop_grid(nitem=1)
 
