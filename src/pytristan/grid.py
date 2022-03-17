@@ -17,7 +17,14 @@ import operator
 import numpy as np
 from ._manager import ObjectManager
 
-__all__ = ["Grid", "cheb", "get_grid"]
+__all__ = [
+    "Grid",
+    "cheb",
+    "get_grid",
+    "drop_grid",
+    "drop_last_grid",
+    "_get_grid_manager",
+]
 
 
 def cheb(xmin, xmax, npts):
@@ -49,7 +56,7 @@ class Grid(np.ndarray):
 
         obj = obj.view(cls)
 
-        obj._id = None  # Unique id of the grid
+        obj._num = None  # Unique identifier of the grid
 
         obj.ndims = obj.shape[0]  # Number of grid dimensions
         obj.npts = tuple(len(arr) for arr in arrs)
@@ -63,7 +70,7 @@ class Grid(np.ndarray):
             return
 
         # FIXME: how do we handle subgrids ids?
-        self._id = None
+        self._num = None
         # Grid is designed in a way that the coordinate arrays are stored in a column-
         # major order. If the Grid instance is created through slicing or view-casting,
         # it becomes the responsibility of the user to ensure correct shaping and set
@@ -167,10 +174,10 @@ class Grid(np.ndarray):
         return cls(arrs, geom, fornberg)
 
     def __repr__(self):
-        if self._id is None:
-            msg = "no unique id"
+        if self._num is None:
+            msg = "no unique identifier"
         else:
-            msg = f"unique id: {str(self._id)}"
+            msg = f"unique identifier: {str(self._num)}"
         return f"Instance of {type(self).__name__} with {msg}"
 
     def axpoints(self, axis):
@@ -214,22 +221,22 @@ class Grid(np.ndarray):
         return [mat.reshape(self.npts, order="F") for mat in self]
 
     @property
-    def id(self):
-        return self._id
+    def num(self):
+        return self._num
 
-    @id.setter
-    def id(self, num):
-        """Setter of id property.
+    @num.setter
+    def num(self, number):
+        """Setter of num property.
 
         get_grid is a sole allowed caller of the setter. It will assign an instance a
-        unique id and register it in grid manager.
+        unique num and register it in grid manager.
         """
         legal_caller = "get_grid"
         # Get names of a caller and its full filename.
         filename = inspect.stack()[1].filename
         funcname = inspect.stack()[1].function
 
-        if not filename.endswith(legal_caller + ".py") and not legal_caller in funcname:
+        if not filename.endswith(legal_caller + ".py") and legal_caller not in funcname:
             raise RuntimeError(
                 f"{funcname} in {filename} attempted to assign a name to an instance "
                 f"of {type(self).__name__}. This action is only permitted to "
@@ -237,7 +244,7 @@ class Grid(np.ndarray):
                 f"dedicated manager and allows its efficient re-usage."
             )
 
-        self._id = num
+        self._num = number
 
 
 def _get_grid_manager(_grid_manager_instance=ObjectManager()):
@@ -245,8 +252,65 @@ def _get_grid_manager(_grid_manager_instance=ObjectManager()):
     return _grid_manager_instance
 
 
+def drop_grid(num=None, nitem=0):
+    """Allows to remove (drop) one or more grids from the grid manager.
+
+    Parameters
+    ----------
+    num: int or array-like of int
+        If provided, indicates the identifiers of the grids to be dropped from
+        the list of grids stored in the grid manager. Default is None.
+    nitem: int
+        Number of grids to drop starting from the end of the list of grids
+        stored in the grid manager. Default is 0.
+
+    Notes
+    -----
+    num or nitem != 0 should not be both passed as arguments in the same
+    call to the function (see examples below).
+
+    Examples
+    --------
+    >>> grid_manager = _get_grid_manager()
+    >>> print(grid_manager.nums())
+    [0, 1, 2, 3, 4]
+    >>> drop_grid(num=[0, 3]) # drops grids with identifiers 0 and 3.
+    >>> print(grid_manager.nums())
+    [1, 2, 4]
+    >>> drop_grid(2) # drops grid with identifier 3.
+    >>> print(grid_manager.nums())
+    [1, 4]
+    >>> drop_grid(num=3, nitem=2) # raises an error
+    ValueError: num can only be used alongside nitem=0
+    >>> drop_grid(nitem=2) # drops the last two grids from the grid manager.
+    >>> print(grid_manager.nums())
+    []
+    """
+
+    grid_manager = _get_grid_manager()
+
+    if num is None:
+        if nitem == 0:
+            warnings.warn("No grids were dropped because num=None and nitem=0")
+        nums = grid_manager.nums()
+        drops = nums[-1 : -nitem - 1 : -1]
+    else:
+        if nitem > 0:
+            raise ValueError("num can only be used alongside nitem=0")
+        drops = [num] if isinstance(num, int) else num
+
+    for drop in drops:
+        delattr(grid_manager, str(drop))
+
+
+def drop_last_grid():
+    """Shortcut for dropping the last grid contained in the grid manager."""
+
+    drop_grid(nitem=1)
+
+
 def get_grid(
-    id=None,
+    num=None,
     arrs=None,
     xmin=None,
     xmax=None,
@@ -259,11 +323,11 @@ def get_grid(
     """Getter and registrator of numerical grids.
 
     Allows re-usage of the same instance of Grid anywhere in the program at run time
-    using unique id of this instance (see Notes and Examples).
+    using unique identifier (num) of this instance (see Notes and Examples).
 
     Parameters
     ----------
-    id: int or None
+    num: int or None
     arrs: iterable filled with 1D array-like or None
         If provided, 1D arrays must represent the axpoints of the grid. Default is None.
     xmin: array_like or None
@@ -281,7 +345,7 @@ def get_grid(
         value of geom).
     fornberg: bool
         Whether the Fornberg grid is requested. Default is False. Will be ignored, if an
-        instance is retrieved from a manager by its id (this instance will have its own
+        instance is retrieved from a manager by its num (this instance will have its own
         value of fornberg).
     axes: array-like
         Axes, along which, mapping is to be applied. Default is an empty list.
@@ -306,13 +370,13 @@ def get_grid(
             axes=[0, 1],
             mappers=[cheb, cheb],
         )
-    >>> # Since it's the first instance of Grid create at the run time, will have id
+    >>> # Since it's the first instance of Grid create at the run time, will have num
     >>> # equal to 0.
-    >>> print(grid.id)
+    >>> print(grid.num)
     0
-    >>> grid0 = get_grid(id=0)
+    >>> grid0 = get_grid(num=0)
     >>> # Assert will pass.
-    >>> assert np.allclose(grid, grid0) and id(grid) == id(grid0)
+    >>> assert grid.num == grid0.num and id(grid) == id(grid0)
     >>> # Create some other grid.
     >>> grid = get_grid(
             xmin=[0],
@@ -320,31 +384,31 @@ def get_grid(
             npts=[11],
         )
     >>> # This instance will have id equal to 1.
-    >>> grid1 = get_grid(id=1)
-    >>> assert np.allclose(grid, grid1) and id(grid) == id(grid1)
+    >>> grid1 = get_grid(num=1)
+    >>> assert grid.num == grid1.num and id(grid) == id(grid1)
     >>> # Other previously created instances can be retrieved at any time.
-    >>> grid = get_grid(id=0)
-    >>> assert np.allclose(grid, grid0) and id(grid) == id(grid0)
+    >>> grid = get_grid(num=0)
+    >>> assert grid.num == grid0.num and num(grid) == num(grid0)
 
     Usage of `fornberg` flag.
 
     Notes
     -----
-    If an instance of a grid with an id provided by the user has already been created
-    using get_grid, this same instance will be returned. If id is not provided or no
-    instance under id provided exists, new instance will be created. An id of a newly
-    created instance will be that provided by a user (in the case it was provided), 0
-    if manager's collection is empty, or max(ids) + 1, where ids is a list of all ids
-    known to the manager.
+    If an instance of a grid with an identifier (num) provided by the user has already
+    been created using get_grid, this same instance will be returned. If num is not
+    provided or no instance under num provided exists, a new instance will be created.
+    An identifier of a newly created instance will be that provided by a user (in the
+    case it was provided), 0 if manager's collection is empty, or max(ids) + 1, where
+    ids is a list of all ids known to the manager.
     """
 
     grid_manager = _get_grid_manager()
 
-    if id is None:
-        ids = grid_manager.ids()
-        id = max(ids) + 1 if ids else 0
+    if num is None:
+        nums = grid_manager.nums()
+        num = max(nums) + 1 if nums else 0
 
-    grid = getattr(grid_manager, str(id), None)
+    grid = getattr(grid_manager, str(num), None)
 
     if grid is None:
         if all((arrs is None, xmin is None, xmax is None, npts is None)):
@@ -359,8 +423,8 @@ def get_grid(
             # shared blocks of code with polar geometry implementation.
             if xmin is not None or xmax is not None:
                 warnings.warn(
-                    "Polar grid does not support custom values of xmin and xmax. Supplied"
-                    " values will be ignored."
+                    "Polar grid does not support custom values of xmin and xmax. "
+                    " Supplied. values will be ignored."
                 )
 
             if fornberg:
@@ -373,7 +437,7 @@ def get_grid(
         else:
             grid = Grid.from_bounds(xmin, xmax, npts, geom, fornberg, axes, mappers)
 
-        grid.id = id
-        setattr(grid_manager, str(id), grid)
+        grid.num = num
+        setattr(grid_manager, str(num), grid)
 
     return grid

@@ -1,0 +1,8 @@
+.vscode
+*.pyc
+.coverage
+htmlcov
+__pycache__
+*-checkpoint.ipynb
+*-checkpoint.yaml
+src/*.egg-info
