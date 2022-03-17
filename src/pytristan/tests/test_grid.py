@@ -22,16 +22,24 @@ def test_drop_grid():
 
     assert grid_manager.nums() == [0, 1, 2, 3, 4]
 
+    # drop grids with identifiers 0 and 3
     drop_grid(num=[0, 3])
     assert grid_manager.nums() == [1, 2, 4]
 
+    # Warning test (no arguments passed)
     with pytest.warns(
         UserWarning, match="No grids were dropped because num=None and nitem=0"
     ):
         drop_grid()  # should raise a warning
 
+    # Error test (num and nitem passed in the same call and nitem != 0)
+    with pytest.raises(ValueError):
+        drop_grid(num=2, nitem=1)  # should raise an error
+
+    # Drop last grid
     drop_last_grid()
     assert grid_manager.nums() == [1, 2]
 
+    # Drop last two grids
     drop_grid(nitem=2)
     assert grid_manager.nums() == []

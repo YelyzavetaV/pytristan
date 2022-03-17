@@ -253,6 +253,27 @@ def _get_grid_manager(_grid_manager_instance=ObjectManager()):
 
 
 def drop_grid(num=None, nitem=0):
+    """
+    Allows to remove (drop) one or more grids from the grid manager. num or
+    nitem != 0 should not be both passed as arguments in the same call to the
+    function (see examples below).
+
+    Parameters
+    ----------
+    num: int or list of int
+        If provided, indicates the identifiers of the grids to be dropped from
+        the list of grids stored in the grid manager. Default is None.
+    nitem: int
+        Number of grids to drop starting from the end of the list of grids
+        stored in the grid manager. Default is 0.
+
+    Examples
+    --------
+    >>> drop_grid(num=[0, 3]) # drops grids with identifiers 0 and 3.
+    >>> drop_grid(3) # drops grid with identifier 3.
+    >>> drop_grid(nitem=2) # drops the last two grids from the grid manager.
+    >>> drop_grid(num=3, nitem=2) # raises an error
+    """
 
     grid_manager = _get_grid_manager()
 
@@ -272,6 +293,10 @@ def drop_grid(num=None, nitem=0):
 
 
 def drop_last_grid():
+    """
+    Shortcut for dropping the last grid contained in the grid manager.
+    """
+
     drop_grid(nitem=1)
 
 
