@@ -240,11 +240,12 @@ class Grid(np.ndarray):
     def mgrids(self):
         """Recover coordinate matrices of shape (n1, n2, n3,...).
 
-        Equivalent to the output of numpy.meshgrid(x, y, ..., indexing='ij').
+        Equivalent to the output of numpy.meshgrid(x, y, ..., indexing='ij'), where
+        x, y, ... are the coordinate arrays.
 
         Returns
         -------
-        list
+        list containing 2D numpy.ndarray
             List of meshgrid matrices.
         """
         return [mat.reshape(self.npts, order="F") for mat in self]
@@ -253,6 +254,7 @@ class Grid(np.ndarray):
     def num(self):
         return self._num
 
+    # TODO: allow "registering" grids manually?
     @num.setter
     def num(self, number):
         """Setter of num property.
@@ -284,6 +286,9 @@ def _get_grid_manager(_grid_manager_instance=ObjectManager()):
 def drop_grid(num=None, nitem=0):
     """Allows to remove (drop) one or more grids from the grid manager.
 
+    num or nitem != 0 should not be both passed as arguments in the same
+    call to the function (see Examples).
+
     Parameters
     ----------
     num: int or array-like of int
@@ -292,11 +297,6 @@ def drop_grid(num=None, nitem=0):
     nitem: int
         Number of grids to drop starting from the end of the list of grids
         stored in the grid manager. Default is 0.
-
-    Notes
-    -----
-    num or nitem != 0 should not be both passed as arguments in the same
-    call to the function (see examples below).
 
     Examples
     --------
@@ -315,21 +315,47 @@ def drop_grid(num=None, nitem=0):
     >>> print(grid_manager.nums())
     []
     """
-
     grid_manager = _get_grid_manager()
+    # We need to ensure that nitem is positive to avoid unexpected content of drops
+    # when slicing nums. This is the reason why I'm also checking that nitem is integer
+    # - to avoid triggering a TypeError when checking that nitem is not negative.
+    try:
+        nitem = operator.index(nitem)
+    except TypeError as e:
+        raise TypeError("nitem must be an integer.") from e
+    if nitem < 0:
+        raise ValueError("nitem must be a positive integer.")
 
     if num is None:
         if nitem == 0:
-            warnings.warn("No grids were dropped because num=None and nitem=0")
+            warnings.warn("No grids were dropped because num is None and nitem=0.")
+            return  # To ensure "do-nothing" behaviour
         nums = grid_manager.nums()
         drops = nums[-1 : -nitem - 1 : -1]
     else:
         if nitem > 0:
-            raise ValueError("num can only be used alongside nitem=0")
-        drops = [num] if isinstance(num, int) else num
+            raise ValueError(
+                "Providing num different from None and nitem different from 0 at the "
+                "same time is ambiguous. To drop N last grid(s) from the manager AND "
+                "to drop grid(s) with particular identifier(s), you have to perform "
+                "two consecutive calls to drop_grid (see documentation)."
+            )
+        # This way we avoid an error that drops is not iterable as before, as it's not
+        # very informative for the user. Instead we allow trying to drop grid with any
+        # identifiers, and if such grid doesn't exist, a warning message will be shown.
+        try:
+            drops = iter(num)
+        except TypeError:
+            drops = [num]
 
     for drop in drops:
-        delattr(grid_manager, str(drop))
+        try:
+            delattr(grid_manager, str(drop))
+        except AttributeError:
+            warnings.warn(
+                f"Grid with identifier {drop} could not be dropped as it's not "
+                f"registered in the manager."
+            )
 
 
 def drop_last_grid():
