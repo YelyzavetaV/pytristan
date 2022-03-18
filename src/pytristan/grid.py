@@ -34,7 +34,8 @@ def cheb(npts, xmin=None, xmax=None):
 
         x_j = cos(pi * j / (N - 1)),
 
-    where j = 0, ..., N - 1. They can be onto an arbitrary interval [xmin, xmax] by
+    where j = 0, ..., N - 1. They can be mapped onto an arbitrary interval [xmin, xmax]
+    by
 
         x_j = (1 / 2) * (1.0 - x_j) * (xmax - xmin) + xmin.
 
@@ -64,9 +65,7 @@ def cheb(npts, xmin=None, xmax=None):
     except TypeError as e:
         raise TypeError("npts must be an integer") from e
     if npts < 0:
-        raise ValueError(
-            f"Number of grid points, {str(npts)}, must be a positive integer"
-        )
+        raise ValueError(f"Number of grid points, {npts}, must be a positive integer")
 
     x = np.cos(np.arange(npts) * np.pi / (npts - 1))
     if xmin is not None or xmax is not None:
