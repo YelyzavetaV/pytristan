@@ -102,7 +102,6 @@ class Grid(np.ndarray):
         if obj is None:
             return
 
-        # FIXME: how do we handle subgrids ids?
         self._num = None
         # Grid is designed in a way that the coordinate arrays are stored in a column-
         # major order. If the Grid instance is created through slicing or view-casting,
@@ -123,22 +122,24 @@ class Grid(np.ndarray):
 
         Parameters
         ----------
-        xmin: array_like
+        xmin: array-like
             Sequence of lower bounds for each directions in the grid.
-        xmax: array_like
+        xmax: array-like
             Sequence of upper bounds for each directions in the grid.
-        npts: array_like
+        npts: array-like
             Sequence of number of points along each direction in the grid.
-        geom: str
-            Geometry of the grid. Default is 'cart' for Cartesian.
-        axes: array-like
+        geom: str, default="cart"
+            Geometry of the grid. Default is "cart" stands for Cartesian.
+        fornberg: bool, default=False
+            Whether the Fornberg method is to be applied when constructing differential
+            operators based on this grid.
+        axes: array-like, default=[]
             Axes, along which, mapping is to be applied.
-        mappers: array-like
-            Mappers to apply along the axes specified.
-            To apply Chebyshev mapping, cheb function should be passed as an element
-            of mappers.
+        mappers: array-like, default=[]
+            Mappers to apply along the axes specified. To apply Chebyshev mapping,
+            pytristan.cheb function should be passed as an element of mappers.
             Arbitrary mapping functions are supported as well. User must implement a
-            Python function that implements a mapping and returns a np.ndarray.
+            Python callable that implements a mapping and returns a np.ndarray.
 
         Returns
         -------
@@ -167,23 +168,23 @@ class Grid(np.ndarray):
            14.26776695 14.26776695 14.26776695 14.80969883 14.80969883 14.80969883
            15.         15.         15.        ]]
         """
+        # TODO: when we move pytristan to Python 3.10, these two block can both go, as
+        # zip has support for `strict` kw argument to raise an error if the iterable
+        # are not of the same sizes.
         if len(xmin) != len(xmax) or len(xmin) != len(npts):
             raise ValueError("Lengths of xmin, xmax and npts do not match.")
         if axes or mappers:
             if len(axes) != len(mappers):
                 raise ValueError("Lengths of axes and mappers do not match.")
 
-            if any([not callable(mapper) for mapper in mappers]):
-                raise ValueError()
-            # Collect all mapping data in one dict. Keys are the axes to map along, and
-            # values are the mappers with their arguments.
+        # Collect all mapping data in one dict. Keys are the axes to map along, and
+        # values are the mappers.
         mapdict = dict(zip(axes, mappers))
-
+        for mapper in mappers:
+            if not callable(mapper):
+                raise TypeError("All mappers must be callable.")
         # Build 1D coordinate arrays. If no mappers are specified in the direction, it
-        # will be equispaced. Otherwise, attempt will be made to call a mapper function
-        # with the arguments provided, as they were ordered by the user. If 'cheb'
-        # keywords is provided instead of a mapper, arguments will be taken care of
-        # implicitly.
+        # will be equispaced. Otherwise, attempt will be made to call a mapper function.
         arrs = tuple(
             mapdict[ax](i, j, n) if ax in mapdict.keys() else np.linspace(i, j, n)
             for ax, (i, j, n) in enumerate(zip(xmin, xmax, npts))
@@ -197,12 +198,17 @@ class Grid(np.ndarray):
 
         Parameters
         ----------
-        arrs: iterable filled with 1D array-like
-            1D arrays must represent the axpoints of the grid.
+        arrs: iterable containing 1D array-like
+            1D coordinate arrays.
+        geom: str, default="cart"
+            Geometry of the grid. Default is "cart" stands for Cartesian.
+        fornberg: bool, default=False
+            Whether the Fornberg method is to be applied when constructing differential
+            operators based on this grid.
 
         Returns
         -------
-        Constructor of Grid.
+        Instance of Grid.
         """
         return cls(arrs, geom, fornberg)
 
@@ -211,7 +217,7 @@ class Grid(np.ndarray):
             msg = "no unique identifier"
         else:
             msg = f"unique identifier: {str(self._num)}"
-        return f"Instance of {type(self).__name__} with {msg}"
+        return f"Instance of {type(self).__name__} with {msg}."
 
     def axpoints(self, axis):
         """Get coordinates along the axis.
@@ -223,34 +229,24 @@ class Grid(np.ndarray):
 
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Coordinates along the axis.
-
-        Raises
-        ------
-        IndexError from ValueError
-            In the case if axis index is out of bounds.
         """
-        try:
-            self.npts[axis]
-        except IndexError as err:
-            raise err from ValueError(f"grid does not have axis {axis} (out of bounds)")
-
         imax = int(np.prod(self.npts[: axis + 1]))
         step = int(imax / self.npts[axis])
 
         return np.array(self[axis][:imax:step])
 
     def mgrids(self):
-        """Recover coordinate matrices of shape (n1, n2, n3,...) (the output of)
-            numpy.meshgrid(X, Y, ..., indexing='ij').
+        """Recover coordinate matrices of shape (n1, n2, n3,...).
+
+        Equivalent to the output of numpy.meshgrid(x, y, ..., indexing='ij').
 
         Returns
         -------
         list
             List of meshgrid matrices.
         """
-
         return [mat.reshape(self.npts, order="F") for mat in self]
 
     @property
@@ -363,13 +359,13 @@ def get_grid(
     num: int or None
     arrs: iterable filled with 1D array-like or None
         If provided, 1D arrays must represent the axpoints of the grid. Default is None.
-    xmin: array_like or None
+    xmin: array-like or None
         If provided, sequence of lower bounds for each directions in the grid. Default
         is None.
-    xmax: array_like or None
+    xmax: array-like or None
         If provided, sequence of upper bounds for each directions in the grid. Default
         is None.
-    npts: array_like or None
+    npts: array-like or None
         If provided, sequence of number of points along each direction in the grid.
         Default is None.
     geom: str
