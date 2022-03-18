@@ -27,16 +27,49 @@ __all__ = [
 ]
 
 
-def cheb(xmin, xmax, npts):
-    npts = operator.index(npts)
+def cheb(npts, xmin=None, xmax=None):
+    """Returns (mapped) Chebyshev (Gauss-Lobatto) points.
+
+    Standard Chebyshev points are defined in the interval [1, -1] as
+
+        x_j = cos(pi * j / (N - 1)),
+
+    where j = 0, ..., N - 1. They can be mapped onto an arbitrary interval [xmin, xmax]
+    by
+
+        x_j = (1 / 2) * (1.0 - x_j) * (xmax - xmin) + xmin.
+
+    Parameters
+    ----------
+    npts: int
+        Number of points.
+    xmin: float, default=None
+        Lower bound of the mapping interval.
+    xmax: float, default=None
+        Upper bound of the mapping interval.
+
+    Returns
+    -------
+    x: numpy.ndarray
+        (Mapped) Chebyshev points.
+
+    Raises
+    ------
+    TypeError
+        In the case if npts is not an integer.
+    ValueError
+        In the case if npts is a negative number.
+    """
+    try:
+        npts = operator.index(npts)
+    except TypeError as e:
+        raise TypeError("npts must be an integer") from e
     if npts < 0:
-        raise ValueError(
-            f"Number of grid points, {str(npts)}, must be a positive number"
-        )
-    # TODO: should we use np.polynomial.chebyshev.chebpts2(npts)? Yields the same points
-    # but reversed.
+        raise ValueError(f"Number of grid points, {npts}, must be a positive integer")
+
     x = np.cos(np.arange(npts) * np.pi / (npts - 1))
-    x = (1.0 - x) / 2.0 * (xmax - xmin) + xmin
+    if xmin is not None or xmax is not None:
+        x = (1.0 - x) / 2.0 * (xmax - xmin) + xmin
     return x
 
 
@@ -152,8 +185,8 @@ class Grid(np.ndarray):
         # keywords is provided instead of a mapper, arguments will be taken care of
         # implicitly.
         arrs = tuple(
-            mapdict[ax](i, j, n) if ax in mapdict.keys() else np.linspace(i, j, n)
-            for ax, (i, j, n) in enumerate(zip(xmin, xmax, npts))
+            mapdict[ax](n, i, j) if ax in mapdict.keys() else np.linspace(i, j, n)
+            for ax, (n, i, j) in enumerate(zip(npts, xmin, xmax))
         )
 
         return cls(arrs, geom, fornberg)
