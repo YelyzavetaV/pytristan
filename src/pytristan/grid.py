@@ -185,8 +185,8 @@ class Grid(np.ndarray):
         # keywords is provided instead of a mapper, arguments will be taken care of
         # implicitly.
         arrs = tuple(
-            mapdict[ax](i, j, n) if ax in mapdict.keys() else np.linspace(i, j, n)
-            for ax, (i, j, n) in enumerate(zip(xmin, xmax, npts))
+            mapdict[ax](n, i, j) if ax in mapdict.keys() else np.linspace(i, j, n)
+            for ax, (n, i, j) in enumerate(zip(npts, xmin, xmax))
         )
 
         return cls(arrs, geom, fornberg)
