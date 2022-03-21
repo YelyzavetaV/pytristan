@@ -1,7 +1,8 @@
 import pytest
+import numpy as np
 from numpy.polynomial.chebyshev import chebpts2
-from numpy.testing import assert_almost_equal
-from pytristan import get_grid, cheb, drop_grid, drop_last_grid, _get_grid_manager
+from numpy.testing import assert_almost_equal, assert_array_equal
+from pytristan import cheb, Grid, _get_grid_manager, get_grid, drop_grid, drop_last_grid
 
 
 def test_cheb_raises():
@@ -23,6 +24,34 @@ def test_cheb_bounds():
     assert x[0] == 0.0 and x[-1] == 10.0
 
 
+def test_grid_from_bounds_raises():
+    with pytest.raises(ValueError):
+        Grid.from_bounds(0, [1, 1], 2)
+        Grid.from_bounds(0, 1, 2, axes=0, mappers=[])
+        Grid.from_bounds([[0], [0]], [[1], [1]], [[2], [2]])
+    with pytest.raises(TypeError):
+        Grid.from_bounds([0], [1], [2], axes=[0], mappers=["bad_mapper"])
+
+
+def test_grid_from_arrs_raises():
+    with pytest.raises(TypeError):
+        Grid.from_arrs(1)
+    # Error test (when coordinate array in wrong format).
+    with pytest.raises(ValueError):
+        Grid.from_arrs([np.arange(4).reshape(2, 2)])
+        Grid.from_arrs([0])
+    with pytest.warns(RuntimeWarning):
+        Grid.from_arrs([np.zeros(2)])
+
+
+def test_grid_from_arrs():
+    arrs = [[0.0], [-1.0, 1.0]]
+    assert_array_equal(
+        Grid.from_arrs(arrs),
+        Grid(arrs),
+    )
+
+
 def test_get_grid_num():
     # Grid retrieval test
     grid = get_grid(
@@ -42,14 +71,14 @@ def test_drop_grid_raises():
         drop_grid(num="10")
     # Warning test (no arguments passed).
     with pytest.warns(
-        UserWarning, match="No grids were dropped because num is None and nitem=0."
+        RuntimeWarning, match="No grids were dropped because num is None and nitem=0."
     ):
         drop_grid()
     # Error test (num and nitem passed in the same call and nitem != 0).
     with pytest.raises(ValueError):
         drop_grid(num=2, nitem=1)
     # Warning test (trying to drop a grid that is not registered).
-    with pytest.warns(UserWarning):
+    with pytest.warns(RuntimeWarning):
         drop_grid(num=10)
 
 

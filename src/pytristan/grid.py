@@ -168,6 +168,31 @@ class Grid(np.ndarray):
            14.26776695 14.26776695 14.26776695 14.80969883 14.80969883 14.80969883
            15.         15.         15.        ]]
         """
+        # Now we allow passing parameters for the 1D grids as numbers and not
+        # array-like. Here we make sure that they all have ndim attribute. Next we
+        # check if they are either all numbers or all array-like.
+        # It shall also be allowed that axes and mappers are just numbers even for
+        # multi-dimensional grids.
+        xmin = np.asarray(xmin)
+        xmax = np.asarray(xmax)
+        npts = np.asarray(npts)
+        axes = np.asarray(axes)
+        mappers = np.asarray(mappers)
+        if xmin.ndim != xmax.ndim or xmin.ndim != npts.ndim or xmin.ndim > 1:
+            raise ValueError(
+                "xmin, xmax and npts must be numbers in the case of a 1D grid or "
+                "1D array-like in the case of multi-dimensional grid."
+            )
+        if axes.ndim != mappers.ndim or axes.ndim > 1:
+            raise ValueError(
+                "axes and mappers must be either numbers or 1D array-like."
+            )
+        # If a grid parameter is a number, convert it to 1D array.
+        for par in (xmin, xmax, npts, axes, mappers):
+            if par.ndim == 0:
+                par = par[np.newaxis]
+        if not all([callable(mapper) for mapper in mappers]):
+            raise TypeError("All mappers must be callable.")
         # TODO: when we move pytristan to Python 3.10, these two block can both go, as
         # zip has support for `strict` kw argument to raise an error if the iterable
         # are not of the same sizes.
@@ -180,11 +205,8 @@ class Grid(np.ndarray):
         # Collect all mapping data in one dict. Keys are the axes to map along, and
         # values are the mappers.
         mapdict = dict(zip(axes, mappers))
-        for mapper in mappers:
-            if not callable(mapper):
-                raise TypeError("All mappers must be callable.")
         # Build 1D coordinate arrays. If no mappers are specified in the direction, it
-        # will be equispaced. Otherwise, attempt will be made to call a mapper function.
+        # will be equispaced. Otherwise, attempt will be made to call a mapper.
         arrs = tuple(
             mapdict[ax](n, i, j) if ax in mapdict.keys() else np.linspace(i, j, n)
             for ax, (n, i, j) in enumerate(zip(npts, xmin, xmax))
@@ -210,6 +232,28 @@ class Grid(np.ndarray):
         -------
         Instance of Grid.
         """
+        try:
+            iter(arrs)
+        except TypeError as e:
+            raise TypeError(
+                "arrs must be an iterable containing coordinate arrays."
+            ) from e
+        for arr in arrs:
+            if np.asarray(arr).ndim != 1:
+                raise ValueError(
+                    "Coordinate arrays must be one-dimensional array-like."
+                )
+            # Check if a coordinate only appears once in a coordinate array. Error or
+            # warning?
+            # TODO: more info?
+            _, counts = np.unique(arr, return_counts=True)
+            if not (counts == 1).all():
+                warnings.warn(
+                    "Detected repeated occurrence of coordinate in the same coordinate"
+                    " array.",
+                    RuntimeWarning,
+                )
+
         return cls(arrs, geom, fornberg)
 
     def __repr__(self):
@@ -328,7 +372,9 @@ def drop_grid(num=None, nitem=0):
 
     if num is None:
         if nitem == 0:
-            warnings.warn("No grids were dropped because num is None and nitem=0.")
+            warnings.warn(
+                "No grids were dropped because num is None and nitem=0.", RuntimeWarning
+            )
             return  # To ensure "do-nothing" behaviour
         nums = grid_manager.nums()
         drops = nums[-1 : -nitem - 1 : -1]
@@ -365,7 +411,8 @@ def drop_grid(num=None, nitem=0):
         except AttributeError:
             warnings.warn(
                 f"Grid with identifier {drop} could not be dropped as it's not "
-                f"registered in the manager."
+                f"registered in the manager.",
+                RuntimeWarning,
             )
 
 
