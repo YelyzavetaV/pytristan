@@ -1,5 +1,26 @@
 import pytest
+from numpy.polynomial.chebyshev import chebpts2
+from numpy.testing import assert_almost_equal
 from pytristan import get_grid, cheb, drop_grid, drop_last_grid, _get_grid_manager
+
+
+def test_cheb_raises():
+    with pytest.raises(TypeError):
+        cheb(10.0)
+    with pytest.raises(ValueError):
+        cheb(-10)
+    with pytest.raises(TypeError):  # Error if only one bound value is provided
+        cheb(10, 0.0)
+        cheb(10, xmax=2.0)
+
+
+def test_cheb_pts():
+    assert_almost_equal(cheb(10), chebpts2(10)[::-1])
+
+
+def test_cheb_bounds():
+    x = cheb(10, 0.0, 10.0)
+    assert x[0] == 0.0 and x[-1] == 10.0
 
 
 def test_get_grid_num():
