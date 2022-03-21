@@ -340,13 +340,24 @@ def drop_grid(num=None, nitem=0):
                 "to drop grid(s) with particular identifier(s), you have to perform "
                 "two consecutive calls to drop_grid (see documentation)."
             )
-        # This way we avoid an error that drops is not iterable as before, as it's not
-        # very informative for the user. Instead we allow trying to drop grid with any
-        # identifiers, and if such grid doesn't exist, a warning message will be shown.
+        # This way we first check if num is just integer. operator.index is more broad
+        # than isinstance(num, int). The latter will return False when some specialized
+        # integer type is passed (for example np.int16(num)).
+        #
+        # If num is not an integer to begin with, it's gonna be too hideous to try to
+        # check its type. I propose we create an array and allow trying to drop the
+        # grids, and if they don't exist in manager, it doesn't matter, what's the type
+        # of num. This is rather a "permissive" way to proceed. However, checking the
+        # ndim of drops will trigger an error in some cases when the user passes num
+        # of weird type - string for example.
         try:
-            drops = iter(num)
+            operator.index(num)
         except TypeError:
-            drops = [num]
+            drops = np.asarray(num)
+        else:
+            drops = np.asarray([num])
+        if drops.ndim == 0:
+            raise TypeError("num must be an interger of an array-like of integers.")
 
     for drop in drops:
         try:
@@ -360,7 +371,6 @@ def drop_grid(num=None, nitem=0):
 
 def drop_last_grid():
     """Shortcut for dropping the last grid contained in the grid manager."""
-
     drop_grid(nitem=1)
 
 
