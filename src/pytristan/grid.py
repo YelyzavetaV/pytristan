@@ -115,9 +115,7 @@ class Grid(np.ndarray):
 
     # TODO: add support of custom mappers with *args (and **kwargs).
     @classmethod
-    def from_bounds(
-        cls, xmin, xmax, npts, geom="cart", fornberg=False, axes=[], mappers=[]
-    ):
+    def from_bounds(cls, *bounds, geom="cart", fornberg=False, axes=[], mappers=[]):
         """Create a grid from axes bounds.
 
         Parameters
@@ -168,54 +166,24 @@ class Grid(np.ndarray):
            14.26776695 14.26776695 14.26776695 14.80969883 14.80969883 14.80969883
            15.         15.         15.        ]]
         """
-        # Now we allow passing parameters for the 1D grids as numbers and not
-        # array-like. Here we make sure that they all have ndim attribute. Next we
-        # check if they are either all numbers or all array-like.
-        # It shall also be allowed that axes and mappers are just numbers even for
-        # multi-dimensional grids.
-        xmin = np.asarray(xmin)
-        xmax = np.asarray(xmax)
-        npts = np.asarray(npts)
-        axes = np.asarray(axes)
-        mappers = np.asarray(mappers)
-        if xmin.ndim != xmax.ndim or xmin.ndim != npts.ndim or xmin.ndim > 1:
-            raise ValueError(
-                "xmin, xmax and npts must be numbers in the case of a 1D grid or "
-                "1D array-like in the case of multi-dimensional grid."
-            )
-        if axes.ndim != mappers.ndim or axes.ndim > 1:
-            raise ValueError(
-                "axes and mappers must be either numbers or 1D array-like."
-            )
-        # If a grid parameter is a number, convert it to 1D array.
-        for par in (xmin, xmax, npts, axes, mappers):
-            if par.ndim == 0:
-                par = par[np.newaxis]
-        if not all([callable(mapper) for mapper in mappers]):
-            raise TypeError("All mappers must be callable.")
-        # TODO: when we move pytristan to Python 3.10, these two block can both go, as
-        # zip has support for `strict` kw argument to raise an error if the iterable
-        # are not of the same sizes.
-        if len(xmin) != len(xmax) or len(xmin) != len(npts):
-            raise ValueError("Lengths of xmin, xmax and npts do not match.")
-        if axes or mappers:
-            if len(axes) != len(mappers):
-                raise ValueError("Lengths of axes and mappers do not match.")
-
-        # Collect all mapping data in one dict. Keys are the axes to map along, and
-        # values are the mappers.
-        mapdict = dict(zip(axes, mappers))
-        # Build 1D coordinate arrays. If no mappers are specified in the direction, it
-        # will be equispaced. Otherwise, attempt will be made to call a mapper.
+        for bound in bounds:
+            if np.asarray(bound).ndim != 1 or np.asarray(bound).size != 3:
+                raise ValueError(
+                    "Each bound array must have a single dimension and contain three "
+                    "elements in the following order: lower bound, upper bound and "
+                    "number of grid points."
+                )
         arrs = tuple(
-            mapdict[ax](n, i, j) if ax in mapdict.keys() else np.linspace(i, j, n)
-            for ax, (n, i, j) in enumerate(zip(npts, xmin, xmax))
+            mappers[ax](*((bound[2],) + bound[:2]))
+            if ax in axes
+            else np.linspace(*bound)
+            for ax, bound in enumerate(bounds)
         )
 
         return cls(arrs, geom, fornberg)
 
     @classmethod
-    def from_arrs(cls, arrs, geom="cart", fornberg=False):
+    def from_arrs(cls, *arrs, geom="cart", fornberg=False):
         """Create a grid from axes bounds.
 
         Parameters
@@ -232,14 +200,9 @@ class Grid(np.ndarray):
         -------
         Instance of Grid.
         """
-        try:
-            iter(arrs)
-        except TypeError as e:
-            raise TypeError(
-                "arrs must be an iterable containing coordinate arrays."
-            ) from e
+        arrs = list(map(np.asarray, arrs))
         for arr in arrs:
-            if np.asarray(arr).ndim != 1:
+            if arr.ndim != 1:
                 raise ValueError(
                     "Coordinate arrays must be one-dimensional array-like."
                 )
@@ -422,11 +385,9 @@ def drop_last_grid():
 
 
 def get_grid(
+    *args,
+    from_bounds=False,
     num=None,
-    arrs=None,
-    xmin=None,
-    xmax=None,
-    npts=None,
     geom="cart",
     fornberg=False,
     axes=[],
@@ -523,31 +484,49 @@ def get_grid(
     grid = getattr(grid_manager, str(num), None)
 
     if grid is None:
-        if all((arrs is None, xmin is None, xmax is None, npts is None)):
+        if not args:
             raise ValueError("Could not create a new grid - no grid data supplied.")
-
-        if arrs is not None:
-            grid = Grid.from_arrs(arrs, geom)
-        # Treat special cases, for example polar or spherical geometries, for which the
-        # coordinate arrays bounds are fixed.
-        elif "polar" in geom:
-            # TODO: spherical geometry is yet to be implemented and it will surely have
-            # shared blocks of code with polar geometry implementation.
-            if xmin is not None or xmax is not None:
-                warnings.warn(
-                    "Polar grid does not support custom values of xmin and xmax. "
-                    " Supplied. values will be ignored."
+        # TODO: it'd be good to use `switch` here when moved to Python 3.10.
+        if "polar" in geom:
+            if len(args) != 2:
+                raise ValueError(
+                    f"Expected two positional arguments, since polar coordinate system"
+                    f" has two dimensions. Got {len(args)} instead."
                 )
-
+            for arg in args:
+                if np.asarray(arg).ndim != 0 or np.asarray(arg).size != 1:
+                    raise ValueError(
+                        "Grid parameters along each axis, in the special case of polar"
+                        " coordinate system, must be integers denoting the number of "
+                        "grid points in a given direction."
+                    )
+            nt, nr = np.intp(args)
             if fornberg:
-                npts[-1] *= 2
+                nr *= 2
+            tmin = -np.pi
+            tmax = np.pi - 2.0 * np.pi / nt
+            rmin = -1.0 if fornberg else 0.0
+            rmax = 1.0
 
-            xmin = -np.pi, -1.0 if fornberg else 0.0
-            xmax = np.pi - 2.0 * np.pi / npts[0], 1.0
-
-            grid = Grid.from_bounds(xmin, xmax, npts, geom, fornberg, axes, mappers)
+            grid = Grid.from_bounds(
+                (tmin, tmax, nt),
+                (rmin, rmax, nr),
+                geom=geom,
+                fornberg=fornberg,
+                axes=axes,
+                mappers=mappers,
+            )
         else:
-            grid = Grid.from_bounds(xmin, xmax, npts, geom, fornberg, axes, mappers)
+            if from_bounds:
+                grid = Grid.from_bounds(
+                    *args,
+                    geom=geom,
+                    fornberg=fornberg,
+                    axes=axes,
+                    mappers=mappers,
+                )
+            else:
+                grid = Grid.from_arrs(*args, geom=geom, fornberg=fornberg)
 
         grid.num = num
         setattr(grid_manager, str(num), grid)

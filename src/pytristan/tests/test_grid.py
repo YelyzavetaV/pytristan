@@ -1,7 +1,11 @@
 import pytest
 import numpy as np
 from numpy.polynomial.chebyshev import chebpts2
-from numpy.testing import assert_almost_equal, assert_array_equal
+from numpy.testing import (
+    assert_almost_equal,
+    assert_array_equal,
+    assert_array_almost_equal,
+)
 from pytristan import cheb, Grid, _get_grid_manager, get_grid, drop_grid, drop_last_grid
 
 
@@ -26,40 +30,76 @@ def test_cheb_bounds():
 
 def test_grid_from_bounds_raises():
     with pytest.raises(ValueError):
-        Grid.from_bounds(0, [1, 1], 2)
-        Grid.from_bounds(0, 1, 2, axes=0, mappers=[])
-        Grid.from_bounds([[0], [0]], [[1], [1]], [[2], [2]])
-    with pytest.raises(TypeError):
-        Grid.from_bounds([0], [1], [2], axes=[0], mappers=["bad_mapper"])
+        Grid.from_bounds(0, (0.0, 1.0, 2.0))
+        Grid.from_bounds((0.0, 1.0), (0.0, 1.0))
 
 
 def test_grid_from_arrs_raises():
-    with pytest.raises(TypeError):
-        Grid.from_arrs(1)
     # Error test (when coordinate array in wrong format).
     with pytest.raises(ValueError):
-        Grid.from_arrs([np.arange(4).reshape(2, 2)])
-        Grid.from_arrs([0])
+        Grid.from_arrs(np.arange(4).reshape(2, 2))
+        Grid.from_arrs(1, 2, 3)
     with pytest.warns(RuntimeWarning):
-        Grid.from_arrs([np.zeros(2)])
+        Grid.from_arrs(np.zeros(2))
+
+
+arr = np.array([[0.0, 1.0, 0.0, 1.0, 0.0, 1.0], [-1.0, -1.0, 0.0, 0.0, 1.0, 1.0]])
+
+
+def test_grid_from_bounds_raw():
+    grid = Grid.from_bounds((0.0, 1.0, 2), (-1.0, 1.0, 3))
+    assert_array_equal(arr, grid)
+
+
+def test_grid_from_bounds_cheb():
+    x = chebpts2(8)[::-1]
+    x = (1.0 - x) / 2.0
+    y = chebpts2(6)[::-1]
+    y = (1.0 - y) / 2.0 * 4.0 - 2.0
+
+    grid1 = Grid.from_arrs(x, np.array([-1.0, 0.0, 1.0]))
+    grid2 = Grid.from_bounds((0.0, 1.0, 8), (-1.0, 1.0, 3), axes=[0], mappers=[cheb])
+
+    assert_array_almost_equal(grid1, grid2)
+
+    grid3 = Grid.from_arrs(x, y)
+    grid4 = Grid.from_bounds(
+        (0.0, 1.0, 8), (-2.0, 2.0, 6), axes=[0, 1], mappers=[cheb, cheb]
+    )
+
+    assert_array_almost_equal(grid3, grid4)
 
 
 def test_grid_from_arrs():
-    arrs = [[0.0], [-1.0, 1.0]]
-    assert_array_equal(
-        Grid.from_arrs(arrs),
-        Grid(arrs),
-    )
+    grid = Grid.from_arrs(np.arange(2.0), np.linspace(-1.0, 1.0, 3))
+    assert_array_equal(arr, grid)
+
+
+def test_get_grid_from_bounds():
+    grid1 = Grid.from_bounds((0.0, 1.0, 2), (-2.0, 2.0, 4))
+    grid2 = get_grid((0.0, 1.0, 2), (-2.0, 2.0, 4), from_bounds=True)
+
+    assert_array_almost_equal(grid1, grid2)
+
+    drop_last_grid()
+
+
+def test_get_grid_from_arrs():
+    grid1 = Grid.from_arrs(np.arange(3), np.linspace(-1, 1, 4))
+    grid2 = get_grid(np.arange(3), np.linspace(-1, 1, 4))
+
+    assert_array_almost_equal(grid1, grid2)
+
+    drop_last_grid()
 
 
 def test_get_grid_num():
-    # Grid retrieval test
-    grid = get_grid(
-        num=1, npts=[20, 10], geom="polar", fornberg=True, axes=[1], mappers=[cheb]
-    )
+    # Grid retrieval test.
+    grid1 = get_grid(np.linspace(0.0, 1.0, 5), np.linspace(0.0, 1.0, 5), num=99)
+    grid2 = get_grid(num=99)
 
-    grid0 = get_grid(num=1)
-    assert grid.num == grid0.num and id(grid) == id(grid0)
+    assert grid1.num == grid2.num and id(grid1) == id(grid2)
+
     drop_last_grid()
 
 
@@ -84,20 +124,20 @@ def test_drop_grid_raises():
 
 def test_drop_grid_num():
     for _ in range(5):
-        get_grid(npts=[20, 10], geom="polar", fornberg=True, axes=[1], mappers=[cheb])
+        get_grid(np.linspace(0.0, 1.0, 3), np.linspace(0.0, 1.0, 3))
 
     grid_manager = _get_grid_manager()
 
     assert grid_manager.nums() == [0, 1, 2, 3, 4]
-
-    # drop grids with identifiers 0 and 3
+    # Drop grids with identifiers 0 and 3.
     drop_grid(num=[0, 3])
+
     assert grid_manager.nums() == [1, 2, 4]
-
-    # Drop last grid
+    # Drop last grid.
     drop_last_grid()
-    assert grid_manager.nums() == [1, 2]
 
-    # Drop last two grids
+    assert grid_manager.nums() == [1, 2]
+    # Drop last two grids.
     drop_grid(nitem=2)
+
     assert grid_manager.nums() == []
