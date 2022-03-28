@@ -21,6 +21,7 @@ __all__ = [
     "Grid",
     "cheb",
     "get_grid",
+    "get_polar_grid",
     "drop_grid",
     "drop_last_grid",
     "_get_grid_manager",
@@ -77,7 +78,6 @@ class Grid(np.ndarray):
     def __new__(
         cls,
         arrs,
-        geom="cart",
         fornberg=False,
     ):
         mgrids = np.meshgrid(*arrs, indexing="ij")
@@ -93,7 +93,6 @@ class Grid(np.ndarray):
 
         obj.ndims = obj.shape[0]  # Number of grid dimensions
         obj.npts = tuple(len(arr) for arr in arrs)
-        obj.geom = geom
         obj.fornberg = fornberg
 
         return obj
@@ -109,13 +108,11 @@ class Grid(np.ndarray):
         # the attributes that are dependent on the ordering.
         self.ndims = None
         self.npts = None
-        # Geometry must be inherited if slicing.
-        self.geom = getattr(obj, "geom", "cart")
         self.fornberg = getattr(obj, "fornberg", False)
 
     # TODO: add support of custom mappers with *args (and **kwargs).
     @classmethod
-    def from_bounds(cls, *bounds, geom="cart", fornberg=False, axes=[], mappers=[]):
+    def from_bounds(cls, *bounds, axes=[], mappers=[]):
         """Create a grid from axes bounds.
 
         Parameters
@@ -182,10 +179,10 @@ class Grid(np.ndarray):
             for ax, bound in enumerate(bounds)
         )
 
-        return cls(arrs, geom, fornberg)
+        return cls(arrs)
 
     @classmethod
-    def from_arrs(cls, *arrs, geom="cart", fornberg=False):
+    def from_arrs(cls, *arrs):
         """Create a grid from axes bounds.
 
         Parameters
@@ -219,7 +216,7 @@ class Grid(np.ndarray):
                     RuntimeWarning,
                 )
 
-        return cls(arrs, geom, fornberg)
+        return cls(arrs)
 
     def __repr__(self):
         if self._num is None:
@@ -390,8 +387,6 @@ def get_grid(
     *args,
     from_bounds=False,
     num=None,
-    geom="cart",
-    fornberg=False,
     axes=[],
     mappers=[],
 ):
@@ -489,48 +484,49 @@ def get_grid(
         if not args:
             raise ValueError("Could not create a new grid - no grid data supplied.")
         # TODO: it'd be good to use `switch` here when moved to Python 3.10.
-        if "polar" in geom:
-            if len(args) != 2:
-                raise ValueError(
-                    f"Expected two positional arguments, since polar coordinate system"
-                    f" has two dimensions. Got {len(args)} instead."
-                )
-            for arg in args:
-                if np.asarray(arg).ndim != 0 or np.asarray(arg).size != 1:
-                    raise ValueError(
-                        "Grid parameters along each axis, in the special case of polar"
-                        " coordinate system, must be integers denoting the number of "
-                        "grid points in a given direction."
-                    )
-            nt, nr = np.intp(args)
-            if fornberg:
-                nr *= 2
-            tmin = -np.pi
-            tmax = np.pi - 2.0 * np.pi / nt
-            rmin = -1.0 if fornberg else 0.0
-            rmax = 1.0
 
+        if from_bounds:
             grid = Grid.from_bounds(
-                (tmin, tmax, nt),
-                (rmin, rmax, nr),
-                geom=geom,
-                fornberg=fornberg,
+                *args,
                 axes=axes,
                 mappers=mappers,
             )
         else:
-            if from_bounds:
-                grid = Grid.from_bounds(
-                    *args,
-                    geom=geom,
-                    fornberg=fornberg,
-                    axes=axes,
-                    mappers=mappers,
-                )
-            else:
-                grid = Grid.from_arrs(*args, geom=geom, fornberg=fornberg)
+            grid = Grid.from_arrs(*args)
 
         grid.num = num
         setattr(grid_manager, str(num), grid)
+
+    return grid
+
+
+def get_polar_grid(
+    nt,
+    nr,
+    num=None,
+    fornberg=False,
+    axes=[],
+    mappers=[],
+):
+
+    if fornberg:
+        nr *= 2
+
+    tmin = -np.pi
+    tmax = np.pi - 2.0 * np.pi / nt
+    rmin = -1.0 if fornberg else 0.0
+    rmax = 1.0
+
+    grid = get_grid(
+        (tmin, tmax, nt),
+        (rmin, rmax, nr),
+        from_bounds=True,
+        num=num,
+        axes=axes,
+        mappers=mappers,
+    )
+
+    if fornberg:
+        grid.fornberg = True
 
     return grid
