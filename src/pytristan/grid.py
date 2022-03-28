@@ -173,8 +173,10 @@ class Grid(np.ndarray):
                     "elements in the following order: lower bound, upper bound and "
                     "number of grid points."
                 )
+
+        mapdict = dict(zip(axes, mappers))
         arrs = tuple(
-            mappers[ax](*((bound[2],) + bound[:2]))
+            mapdict[ax](*((bound[2],) + bound[:2]))
             if ax in axes
             else np.linspace(*bound)
             for ax, bound in enumerate(bounds)

@@ -51,7 +51,7 @@ def test_grid_from_bounds_raw():
     assert_array_equal(arr, grid)
 
 
-def test_grid_from_bounds_cheb():
+def test_grid_from_bounds_mappers():
     x = chebpts2(8)[::-1]
     x = (1.0 - x) / 2.0
     y = chebpts2(6)[::-1]
@@ -66,8 +66,17 @@ def test_grid_from_bounds_cheb():
     grid4 = Grid.from_bounds(
         (0.0, 1.0, 8), (-2.0, 2.0, 6), axes=[0, 1], mappers=[cheb, cheb]
     )
+    grid5 = Grid.from_bounds(
+        (0.0, 1.0, 8), (-2.0, 2.0, 6), axes=[1, 0], mappers=[cheb, cheb]
+    )
 
     assert_array_almost_equal(grid3, grid4)
+    assert_array_almost_equal(grid3, grid5)
+
+    grid6 = Grid.from_arrs(np.linspace(0.0, 1.0, 8), y)
+    grid7 = Grid.from_bounds((0.0, 1.0, 8), (-2.0, 2.0, 6), axes=[1], mappers=[cheb])
+
+    assert_array_almost_equal(grid6, grid7)
 
 
 def test_grid_from_arrs():
@@ -101,6 +110,21 @@ def test_get_grid_num():
     assert grid1.num == grid2.num and id(grid1) == id(grid2)
 
     drop_last_grid()
+
+
+def test_get_grid_polar_coords():
+    grid1 = get_grid(4, 6, geom="polar")
+
+    assert_array_almost_equal(
+        grid1.axpoints(0), np.arange(-np.pi, np.pi, 2 * np.pi / 4)
+    )
+    assert_array_almost_equal(grid1.axpoints(1), np.linspace(0, 1, 6))
+
+    grid2 = get_grid(4, 6, geom="polar", axes=[1], mappers=[cheb])
+
+    assert_array_almost_equal(grid2.axpoints(1), cheb(6, 0.0, 1.0))
+
+    drop_grid(nitem=2)
 
 
 def test_drop_grid_raises():
