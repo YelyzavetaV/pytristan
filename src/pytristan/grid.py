@@ -167,7 +167,7 @@ class Grid(np.ndarray):
            15.         15.         15.        ]]
         """
         for bound in bounds:
-            if np.asarray(bound).ndim != 1 or np.asarray(bound).size != 3:
+            if np.asarray(bound).shape != (3,):
                 raise ValueError(
                     "Each bound array must have a single dimension and contain three "
                     "elements in the following order: lower bound, upper bound and "
