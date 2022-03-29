@@ -507,6 +507,42 @@ def get_polar_grid(
     axes=[],
     mappers=[],
 ):
+    """Creates a 2D polar grid.
+
+    Parameters
+    ----------
+    nt: int
+        Number of grid points in the azimuthal direction
+    nr: int
+        Number of grid points in the radial direction
+    num: int, default=None
+        If provided, indicates the identifier of the grid to pass to the grid manager.
+    fornberg: bool
+        Whether the Fornberg grid is requested. Default is False.
+    axes: array-like
+        Axes along which a mapping is to be applied. Default is an empty list.
+    mappers: array-like
+        Mappers to apply along the axes specified.
+        To apply Chebyshev mapping, cheb function should be passed as an element of
+        mappers.
+        Arbitrary mapping functions are supported as well. User must implement a
+        Python function that implements a mapping and returns a np.ndarray. Default is
+        an empty list.
+
+    Examples
+    --------
+
+    >>> from pytristan import get_polar_grid, cheb
+    Create a 2D polar grid with no streching and r in [0, 1]
+    >>> grid = get_polar_grid(4, 6)
+
+    Create a 2D polar grid with streching in radial direction and r in [0, 1]
+    >>> grid = get_polar_grid(4, 6, axes=[1], mappers=[cheb])
+
+    Create a 2D polar grid with grid streching in radial direction and r in [-1, 1].
+    This grid is of Fornberg type and will have nr = 12 points in the radial direction
+    >>> grid3 = get_polar_grid(4, 6, fornberg=True, axes=[1], mappers=[cheb])
+    """
 
     if fornberg:
         nr *= 2
