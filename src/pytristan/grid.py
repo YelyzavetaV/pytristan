@@ -113,24 +113,18 @@ class Grid(np.ndarray):
 
         Parameters
         ----------
-        xmin: array-like
-            Sequence of lower bounds for each directions in the grid.
-        xmax: array-like
-            Sequence of upper bounds for each directions in the grid.
-        npts: array-like
-            Sequence of number of points along each direction in the grid.
-        geom: str, default="cart"
-            Geometry of the grid. Default is "cart" stands for Cartesian.
-        fornberg: bool, default=False
-            Whether the Fornberg method is to be applied when constructing differential
-            operators based on this grid.
+        bound0, bound1,..., boundN: array-like
+            Bounds for each dimension. Each bound must be an iterable containing three
+            elements in the following order: lower bound, upper bound, number of points
+            along the given direction. Number of points must be an integer.
+            # TODO: if no bounds passed.
         axes: array-like, default=[]
-            Axes, along which, mapping is to be applied.
+            Axes, along which mapping is to be applied.
         mappers: array-like, default=[]
             Mappers to apply along the axes specified. To apply Chebyshev mapping,
             pytristan.cheb function should be passed as an element of mappers.
             Arbitrary mapping functions are supported as well. User must implement a
-            Python callable that implements a mapping and returns a np.ndarray.
+            Python callable that implements a mapping and returns a numpy.ndarray.
 
         Returns
         -------
@@ -139,25 +133,14 @@ class Grid(np.ndarray):
         Raises
         ------
         ValueError
-            In the following cases:
-            - when len(xmin), len(xmax) and len(npts) don't match
-            - when len(axes) != len(mappers)
+            # TODO
 
         Examples
         --------
-        Create a 2D grid from bounds and apply Gauss-Lobatto mapping along y-axis:
-
-        >>> Grid.from_bounds((0, 10), (1, 15), (3, 9), axes=(1,), mappers=(cheb,))
-        [[ 0.          0.5         1.          0.          0.5         1.
-           0.          0.5         1.          0.          0.5         1.
-           0.          0.5         1.          0.          0.5         1.
-           0.          0.5         1.          0.          0.5         1.
-           0.          0.5         1.        ]
-        [10.         10.         10.         10.19030117 10.19030117 10.19030117
-           10.73223305 10.73223305 10.73223305 11.54329142 11.54329142 11.54329142
-           12.5        12.5        12.5        13.45670858 13.45670858 13.45670858
-           14.26776695 14.26776695 14.26776695 14.80969883 14.80969883 14.80969883
-           15.         15.         15.        ]]
+        # Create a 2D grid Cartesian from bounds:
+        >>> Grid.from_bounds((-1.0, 1.0, 3), (-1.0, 1.0, 3))
+        [[-1.  0.  1. -1.  0.  1. -1.  0.  1.]
+         [-1. -1. -1.  0.  0.  0.  1.  1.  1.]]
         """
         for bound in bounds:
             if np.asarray(bound).shape != (3,):
