@@ -91,7 +91,6 @@ class Grid(np.ndarray):
 
         obj.ndims = obj.shape[0]  # Number of grid dimensions
         obj.npts = tuple(len(arr) for arr in arrs)
-        obj.fornberg = False
 
         return obj
 
@@ -106,7 +105,6 @@ class Grid(np.ndarray):
         # the attributes that are dependent on the ordering.
         self.ndims = None
         self.npts = None
-        self.fornberg = getattr(obj, "fornberg", False)
 
     # TODO: add support of custom mappers with *args (and **kwargs).
     @classmethod
@@ -503,22 +501,15 @@ def get_polar_grid(
 
     if fornberg:
         nr *= 2
+        rmin = -1.0
+    else:
+        rmin = 0.0
 
-    tmin = -np.pi
-    tmax = np.pi - 2.0 * np.pi / nt
-    rmin = -1.0 if fornberg else 0.0
-    rmax = 1.0
-
-    grid = get_grid(
-        (tmin, tmax, nt),
-        (rmin, rmax, nr),
+    return get_grid(
+        (-np.pi, np.pi - 2.0 * np.pi / nt, nt),
+        (rmin, 1.0, nr),
         from_bounds=True,
         num=num,
         axes=axes,
         mappers=mappers,
     )
-
-    if fornberg:
-        grid.fornberg = True
-
-    return grid
