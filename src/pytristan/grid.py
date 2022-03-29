@@ -454,49 +454,79 @@ def get_grid(*args, from_bounds=False, axes=[], mappers=[], num=None):
     return grid
 
 
-def get_polar_grid(
-    nt,
-    nr,
-    num=None,
-    fornberg=False,
-    axes=[],
-    mappers=[],
-):
+def get_polar_grid(nt, nr, axes=[], mappers=[], fornberg=False, num=None):
     """Creates a 2D polar grid.
 
     Parameters
     ----------
     nt: int
-        Number of grid points in the azimuthal direction
+        Number of grid points in the azimuthal direction.
     nr: int
-        Number of grid points in the radial direction
+        Number of grid points in the radial direction.
+    axes: array-like, default=[]
+        Axes along which a mapping is to be applied.
+    mappers: array-like, default=[]
+        Mappers to apply along the axes specified. Should be given in the same order
+        as the corresponding axes in `axes`.
+        To apply Chebyshev mapping, cheb function should be passed as an element of
+        mappers. Arbitrary mapping functions are supported as well. User must implement
+        a Python function that implements a mapping and returns a np.ndarray.
+    fornberg: bool, default=False
+        Whether the Fornberg's grid is requested.
     num: int, default=None
         If provided, indicates the identifier of the grid to pass to the grid manager.
-    fornberg: bool
-        Whether the Fornberg grid is requested. Default is False.
-    axes: array-like
-        Axes along which a mapping is to be applied. Default is an empty list.
-    mappers: array-like
-        Mappers to apply along the axes specified.
-        To apply Chebyshev mapping, cheb function should be passed as an element of
-        mappers.
-        Arbitrary mapping functions are supported as well. User must implement a
-        Python function that implements a mapping and returns a np.ndarray. Default is
-        an empty list.
+        If no value is provided, the grid will be `registered' by num = max(nums) + 1,
+        where nums are all existing identifiers known to the manager. If the manager is
+        empty, num will be equal to 0. If the grid with a given num has already been
+        `registered', it will be returned.
+
+    Notes
+    -----
+        `fornberg`set to True leads to that the radial coordinate r lies on the
+        interval [-1, 1]. Such grid is redundant in the sense that a single point in
+        Cartesian coordinates (x, y) will map to two distinct points in Fornberg's
+        polar coordinates. However, it allows to use technique of constructing
+        matrices of differential operators, as described in [1] and [2]. This technique
+        spares one a necessity to treat the pole (r=0) in circular coordinate system as
+        a boundary and helps avoid the clustering of the grid points near r=0.
+
+    References
+    ----------
+    .. [1] B. Fornberg, "A Pseudospectral Approach for Polar and Spherical Geometries",
+           SIAM J. Sci. Comp., 16(5):1071-1081, 1995.
+    .. [2] L. Trefethen, "Spectral Methods in MATLAB", SIAM, Philadelphia, 2000.
 
     Examples
     --------
-
     >>> from pytristan import get_polar_grid, cheb
     Create a 2D polar grid with no streching and r in [0, 1]
-    >>> grid = get_polar_grid(4, 6)
+    >>> get_polar_grid(4, 6)
+    [[-3.14159265 -1.57079633  0.          1.57079633 -3.14159265 -1.57079633
+       0.          1.57079633 -3.14159265 -1.57079633  0.          1.57079633
+      -3.14159265 -1.57079633  0.          1.57079633 -3.14159265 -1.57079633
+       0.          1.57079633 -3.14159265 -1.57079633  0.          1.57079633]
+     [ 0.          0.          0.          0.          0.2         0.2
+       0.2         0.2         0.4         0.4         0.4         0.4
+       0.6         0.6         0.6         0.6         0.8         0.8
+       0.8         0.8         1.          1.          1.          1.        ]]
 
     Create a 2D polar grid with streching in radial direction and r in [0, 1]
-    >>> grid = get_polar_grid(4, 6, axes=[1], mappers=[cheb])
+    >>> get_polar_grid(4, 6, axes=[1], mappers=[cheb])
+    [[-3.14159265 -1.57079633  0.          1.57079633 -3.14159265 -1.57079633
+       0.          1.57079633 -3.14159265 -1.57079633  0.          1.57079633
+      -3.14159265 -1.57079633  0.          1.57079633 -3.14159265 -1.57079633
+       0.          1.57079633 -3.14159265 -1.57079633  0.          1.57079633]
+     [ 0.          0.          0.          0.          0.0954915   0.0954915
+       0.0954915   0.0954915   0.3454915   0.3454915   0.3454915   0.3454915
+       0.6545085   0.6545085   0.6545085   0.6545085   0.9045085   0.9045085
+       0.9045085   0.9045085   1.          1.          1.          1.        ]]
 
     Create a 2D polar grid with grid streching in radial direction and r in [-1, 1].
     This grid is of Fornberg type and will have nr = 12 points in the radial direction
-    >>> grid3 = get_polar_grid(4, 6, fornberg=True, axes=[1], mappers=[cheb])
+    >>> grid = get_polar_grid(4, 6, fornberg=True, axes=[1], mappers=[cheb])
+    >>> grid.axpoints(1)
+    [-1.         -0.95949297 -0.84125353 -0.65486073 -0.41541501 -0.14231484
+      0.14231484  0.41541501  0.65486073  0.84125353  0.95949297  1.        ]
     """
 
     if fornberg:
