@@ -56,8 +56,6 @@ def test_grid_from_arrs_raises():
     with pytest.raises(ValueError):
         Grid.from_arrs(np.arange(4).reshape(2, 2))
         Grid.from_arrs(1, 2, 3)
-    with pytest.warns(RuntimeWarning):
-        Grid.from_arrs(np.zeros(2))
 
 
 arr = np.array([[0.0, 1.0, 0.0, 1.0, 0.0, 1.0], [-1.0, -1.0, 0.0, 0.0, 1.0, 1.0]])
