@@ -78,7 +78,6 @@ class Grid(np.ndarray):
     def __new__(
         cls,
         arrs,
-        fornberg=False,
     ):
         mgrids = np.meshgrid(*arrs, indexing="ij")
 
@@ -93,7 +92,7 @@ class Grid(np.ndarray):
 
         obj.ndims = obj.shape[0]  # Number of grid dimensions
         obj.npts = tuple(len(arr) for arr in arrs)
-        obj.fornberg = fornberg
+        obj.fornberg = False
 
         return obj
 
