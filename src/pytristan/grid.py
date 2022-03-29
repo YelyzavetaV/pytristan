@@ -222,24 +222,11 @@ class Grid(np.ndarray):
         ------
         ValueError
             In the case if any of the arrs are not one-dimensional array-like.
-        RuntimeWarning
-            If repetitive coordinates detected in the same coordinate array.
         """
-        arrs = list(map(np.asarray, arrs))
         for arr in arrs:
-            if arr.ndim != 1:
+            if np.asarray(arr).ndim != 1:
                 raise ValueError(
                     "Coordinate arrays must be one-dimensional array-like."
-                )
-            # Check if a coordinate only appears once in a coordinate array. Error or
-            # warning?
-            # TODO: more info?
-            _, counts = np.unique(arr, return_counts=True)
-            if not (counts == 1).all():
-                warnings.warn(
-                    "Detected repeated occurrence of coordinate in the same coordinate"
-                    " array.",
-                    RuntimeWarning,
                 )
 
         return cls(arrs)
