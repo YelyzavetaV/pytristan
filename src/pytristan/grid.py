@@ -1,14 +1,16 @@
 """Grid Module
 
-Module provides a Grid class. It subclasses numpy.ndarray and intends to simplify
-certain computational tasks for the user. Coordinate arrays are stored and manipulated
-with in row-major order. The ND numpy arrays produced by numpy.meshgrid can be retrie-
-ved with mgrids method.
+This module provides API to create multi-dimensional grids (meshes). The grid is
+represented by the Python class Grid that directly subclasses numpy.ndarray. All
+coordinate arrays are stored in a linearized order.
 
-Relies on numpy and warnings modules.
-
-* Grid - numpy.ndarray subclass extending its functionality to model N-dimensional
-    structured grid.
+* cheb - function that returns Chebyshev-Gauss-Lobatto points on an arbitrary interval.
+* Grid - Python class that represents a computational grid. Subclasses numpy.ndarray.
+* drop_grid - `unregisters' grids from the grid manager.
+* drop_last_grid - `unregisters` the last created grid from the manager.
+* get_grid - get an existing grid or create a new one and `register' it to the grid
+    manager.
+* get_polar_grid - create and `register' a grid in a polar domain.
 """
 
 import inspect
@@ -18,13 +20,13 @@ import numpy as np
 from ._manager import ObjectManager
 
 __all__ = [
-    "Grid",
     "cheb",
-    "get_grid",
-    "get_polar_grid",
+    "Grid",
+    "_get_grid_manager",
     "drop_grid",
     "drop_last_grid",
-    "_get_grid_manager",
+    "get_grid",
+    "get_polar_grid",
 ]
 
 
