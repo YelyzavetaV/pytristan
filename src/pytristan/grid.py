@@ -1,14 +1,16 @@
 """Grid Module
 
-Module provides a Grid class. It subclasses numpy.ndarray and intends to simplify
-certain computational tasks for the user. Coordinate arrays are stored and manipulated
-with in row-major order. The ND numpy arrays produced by numpy.meshgrid can be retrie-
-ved with mgrids method.
+This module provides API to create multi-dimensional grids (meshes). The grid is
+represented by the Python class Grid that directly subclasses numpy.ndarray. All
+coordinate arrays are stored in a linearized order.
 
-Relies on numpy and warnings modules.
-
-* Grid - numpy.ndarray subclass extending its functionality to model N-dimensional
-    structured grid.
+* cheb - function that returns Chebyshev-Gauss-Lobatto points on an arbitrary interval.
+* Grid - Python class that represents a computational grid. Subclasses numpy.ndarray.
+* drop_grid - `unregisters' grids from the grid manager.
+* drop_last_grid - `unregisters` the last created grid from the manager.
+* get_grid - get an existing grid or create a new one and `register' it to the grid
+    manager.
+* get_polar_grid - create and `register' a grid in a polar domain.
 """
 
 import inspect
@@ -18,13 +20,13 @@ import numpy as np
 from ._manager import ObjectManager
 
 __all__ = [
-    "Grid",
     "cheb",
-    "get_grid",
-    "get_polar_grid",
+    "Grid",
+    "_get_grid_manager",
     "drop_grid",
     "drop_last_grid",
-    "_get_grid_manager",
+    "get_grid",
+    "get_polar_grid",
 ]
 
 
@@ -75,10 +77,7 @@ def cheb(npts, xmin=None, xmax=None):
 
 
 class Grid(np.ndarray):
-    def __new__(
-        cls,
-        arrs,
-    ):
+    def __new__(cls, arrs):
         mgrids = np.meshgrid(*arrs, indexing="ij")
 
         # Linearize grid representation. Column-major order is adopted. Each coordinate
@@ -116,24 +115,16 @@ class Grid(np.ndarray):
 
         Parameters
         ----------
-        xmin: array-like
-            Sequence of lower bounds for each directions in the grid.
-        xmax: array-like
-            Sequence of upper bounds for each directions in the grid.
-        npts: array-like
-            Sequence of number of points along each direction in the grid.
-        geom: str, default="cart"
-            Geometry of the grid. Default is "cart" stands for Cartesian.
-        fornberg: bool, default=False
-            Whether the Fornberg method is to be applied when constructing differential
-            operators based on this grid.
-        axes: array-like, default=[]
-            Axes, along which, mapping is to be applied.
-        mappers: array-like, default=[]
-            Mappers to apply along the axes specified. To apply Chebyshev mapping,
-            pytristan.cheb function should be passed as an element of mappers.
-            Arbitrary mapping functions are supported as well. User must implement a
-            Python callable that implements a mapping and returns a np.ndarray.
+        bound0, bound1,..., boundN: array-like
+            Bounds for each dimension. Each bound must be an iterable containing three
+            elements in the following order: lower bound, upper bound, number of points
+            along the given direction. Number of points must be an integer.
+        axes: array-like of int, default=[]
+            Axes, along which mapping is to be applied.
+        mappers: array-like of callable, default=[]
+            Mapping functions to apply along the axes specified. Should be given in the
+            same order as the corresponding axes in `axes`. A custom user-defined
+            mapper must return a coordinate array.
 
         Returns
         -------
@@ -142,25 +133,20 @@ class Grid(np.ndarray):
         Raises
         ------
         ValueError
-            In the following cases:
-            - when len(xmin), len(xmax) and len(npts) don't match
-            - when len(axes) != len(mappers)
+            # TODO
 
         Examples
         --------
-        Create a 2D grid from bounds and apply Gauss-Lobatto mapping along y-axis:
-
-        >>> Grid.from_bounds((0, 10), (1, 15), (3, 9), axes=(1,), mappers=(cheb,))
-        [[ 0.          0.5         1.          0.          0.5         1.
-           0.          0.5         1.          0.          0.5         1.
-           0.          0.5         1.          0.          0.5         1.
-           0.          0.5         1.          0.          0.5         1.
-           0.          0.5         1.        ]
-        [10.         10.         10.         10.19030117 10.19030117 10.19030117
-           10.73223305 10.73223305 10.73223305 11.54329142 11.54329142 11.54329142
-           12.5        12.5        12.5        13.45670858 13.45670858 13.45670858
-           14.26776695 14.26776695 14.26776695 14.80969883 14.80969883 14.80969883
-           15.         15.         15.        ]]
+        >>> from pytristan import Grid
+        Create a 2D grid Cartesian from bounds:
+        >>> Grid.from_bounds((-1.0, 1.0, 3), (-1.0, 1.0, 3))
+        [[-1.  0.  1. -1.  0.  1. -1.  0.  1.]
+         [-1. -1. -1.  0.  0.  0.  1.  1.  1.]]
+        >>> from pytristan import cheb
+        Create a 1D grid based on Chebyshev-Gauss-Lobatto mapping:
+        >>> Grid.from_bounds((0.0, 2.0, 8), axes=[0], mappers=[cheb])
+        [[0.         0.09903113 0.3765102  0.77747907 1.22252093 1.6234898
+          1.90096887 2.        ]]
         """
         for bound in bounds:
             if np.asarray(bound).shape != (3,):
@@ -186,17 +172,19 @@ class Grid(np.ndarray):
 
         Parameters
         ----------
-        arrs: iterable containing 1D array-like
+        arr0, arr1,..., arrN: array_like
             1D coordinate arrays.
-        geom: str, default="cart"
-            Geometry of the grid. Default is "cart" stands for Cartesian.
-        fornberg: bool, default=False
-            Whether the Fornberg method is to be applied when constructing differential
-            operators based on this grid.
 
         Returns
         -------
         Instance of Grid.
+
+        Raises
+        ------
+        ValueError
+            In the case if any of the arrs are not one-dimensional array-like.
+        RuntimeWarning
+            If repetitive coordinates detected in the same coordinate array.
         """
         arrs = list(map(np.asarray, arrs))
         for arr in arrs:
@@ -382,95 +370,64 @@ def drop_last_grid():
     drop_grid(nitem=1)
 
 
-def get_grid(
-    *args,
-    from_bounds=False,
-    num=None,
-    axes=[],
-    mappers=[],
-):
-    """Getter and registrator of numerical grids.
+def get_grid(*args, from_bounds=False, axes=[], mappers=[], num=None):
+    """Get an existing grid or create a new one.
 
-    Allows re-usage of the same instance of Grid anywhere in the program at run time
-    using unique identifier (num) of this instance (see Notes and Examples).
+    Allows re-usage of the same instance of Grid during the run time using its unique
+    identifier (num) (see Notes and Examples).
 
     Parameters
     ----------
-    num: int or None
-    arrs: iterable filled with 1D array-like or None
-        If provided, 1D arrays must represent the axpoints of the grid. Default is None.
-    xmin: array-like or None
-        If provided, sequence of lower bounds for each directions in the grid. Default
-        is None.
-    xmax: array-like or None
-        If provided, sequence of upper bounds for each directions in the grid. Default
-        is None.
-    npts: array-like or None
-        If provided, sequence of number of points along each direction in the grid.
-        Default is None.
-    geom: str
-        Geometry of the grid. Default is "cart" (Cartesian). Will be ignored, if an
-        instance is retrieved from a manager by its id (this instance will have its own
-        value of geom).
-    fornberg: bool
-        Whether the Fornberg grid is requested. Default is False. Will be ignored, if an
-        instance is retrieved from a manager by its num (this instance will have its own
-        value of fornberg).
-    axes: array-like
-        Axes, along which, mapping is to be applied. Default is an empty list.
-    mappers: array-like
-        Mappers to apply along the axes specified.
-        To apply Chebyshev mapping, cheb function should be passed as an element of
-        mappers.
-        Arbitrary mapping functions are supported as well. User must implement a
-        Python function that implements a mapping and returns a np.ndarray. Default is
-        an empty list.
+    arg0, arg1,..., argN: array-like
+        Either 1D coordinate arrays or axes' bounds. If bounds, each bound must be an
+        iterable containing three elements in the following order: lower bound, upper
+        bound, number of points along the given direction. Number of points must be an
+        integer.
+    from_bounds: bool, default=False
+        Whether to create a grid from coordinate arrays or axes' bounds. Must be
+        consistent with *args.
+    axes: array-like of int, default=[]
+        Axes, along which, mapping is to be applied. Only relevant when from_bounds is
+        True.
+    mappers: array-like of callable, default=[]
+        Mapper functions to apply along the axes specified. Should be given in the same
+        order as the corresponding axes in `axes`. A custom user-defined mapper must
+        return a coordinate array.
+    num: int, default=None
+        Unique identifier of a grid. If no value is provided, the grid will be
+        `registered' by num = max(nums) + 1, where nums are all existing identifiers
+        known to the manager. If the manager is empty, num will be equal to 0. If the
+        grid with a given num has already been created using get_grid, it will be
+        returned.
+
+    Returns
+    -------
+    An instance of Grid.
+
+    Raises
+    ------
+    # TODO
 
     Examples
     --------
     Re-usage of previously created instances of Grid.
 
-    >>> from pytristan import get_grid, cheb
-    >>> # Create some 2D grid.
-    >>> grid = get_grid(
-            xmin=[-1, -1],
-            xmax=[1, 1],
-            npts=[100, 50],
-            axes=[0, 1],
-            mappers=[cheb, cheb],
-        )
-    >>> # Since it's the first instance of Grid create at the run time, will have num
-    >>> # equal to 0.
+    >>> from pytristan import get_grid
+    Create a 2D cartesian grid from bounds. It will be automatically assigned a num=0.
+    >>> grid = get_grid((-1.0, 1.0, 3), (-1.0, 1.0, 3), from_bounds=True)
+    [[-1.  0.  1. -1.  0.  1. -1.  0.  1.]
+     [-1. -1. -1.  0.  0.  0.  1.  1.  1.]]
     >>> print(grid.num)
     0
+    Recover this grid using its unique identifier and verify it.
     >>> grid0 = get_grid(num=0)
-    >>> # Assert will pass.
-    >>> assert grid.num == grid0.num and id(grid) == id(grid0)
-    >>> # Create some other grid.
-    >>> grid = get_grid(
-            xmin=[0],
-            xmax=[10],
-            npts=[11],
-        )
-    >>> # This instance will have id equal to 1.
-    >>> grid1 = get_grid(num=1)
-    >>> assert grid.num == grid1.num and id(grid) == id(grid1)
-    >>> # Other previously created instances can be retrieved at any time.
-    >>> grid = get_grid(num=0)
-    >>> assert grid.num == grid0.num and num(grid) == num(grid0)
-
-    Usage of `fornberg` flag.
-
-    Notes
-    -----
-    If an instance of a grid with an identifier (num) provided by the user has already
-    been created using get_grid, this same instance will be returned. If num is not
-    provided or no instance under num provided exists, a new instance will be created.
-    An identifier of a newly created instance will be that provided by a user (in the
-    case it was provided), 0 if manager's collection is empty, or max(ids) + 1, where
-    ids is a list of all ids known to the manager.
+    By default from_bounds is False, so if we don't specify that from_bounds is True,
+    the following tuples will be interpreted as coordinate arrays with
+    x=[-1.0, 1.0, 3.0].
+    >>> get_grid((-1.0, 1.0, 3), (-1.0, 1.0, 3))
+    [[-1.  1.  3. -1.  1.  3. -1.  1.  3.]
+     [-1. -1. -1.  1.  1.  1.  3.  3.  3.]]
     """
-
     grid_manager = _get_grid_manager()
 
     if num is None:
