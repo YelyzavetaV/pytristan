@@ -40,6 +40,15 @@ def test_grid_from_bounds_raises():
     with pytest.raises(ValueError):
         Grid.from_bounds(0, (0.0, 1.0, 2.0))
         Grid.from_bounds((0.0, 1.0), (0.0, 1.0))
+        Grid.from_bounds((-1, 1, 2), axes=[0])
+        Grid.from_bounds((-1, 1, 2), (-1, 1, 2), axes=[0, 0], mappers=[cheb, cheb])
+        Grid.from_bounds((-1, 1, 2), (-1, 1, 2), axes=[1, -1], mappers=[cheb, cheb])
+    with pytest.raises(TypeError):
+        Grid.from_bounds((-1, 1, 2), axes=0)
+        Grid.from_bounds((-1, 1, 2), axes=[0.0], mappers=[cheb])
+    with pytest.raises(IndexError):
+        Grid.from_bounds((-1, 1, 2), axes=[1], mappers=[cheb])
+        Grid.from_bounds((-1, 1, 2), axes=[-3], mappers=[cheb])
 
 
 def test_grid_from_arrs_raises():
@@ -85,6 +94,12 @@ def test_grid_from_bounds_mappers():
     grid7 = Grid.from_bounds((0.0, 1.0, 8), (-2.0, 2.0, 6), axes=[1], mappers=[cheb])
 
     assert_array_almost_equal(grid6, grid7)
+    # Check that negative indices are properly converted to the positive ones.
+    grid8 = Grid.from_bounds((0.0, 1.0, 8), (-2.0, 2.0, 6), axes=[-1], mappers=[cheb])
+    grid9 = Grid.from_bounds((0.0, 1.0, 8), (-1.0, 1.0, 3), axes=[-2], mappers=[cheb])
+
+    assert_array_almost_equal(grid7, grid8)
+    assert_array_almost_equal(grid2, grid9)
 
 
 def test_grid_from_arrs():

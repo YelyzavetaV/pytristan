@@ -66,9 +66,9 @@ def cheb(npts, xmin=None, xmax=None):
     try:
         npts = operator.index(npts)
     except TypeError as e:
-        raise TypeError("npts must be an integer") from e
+        raise TypeError("npts must be an integer.") from e
     if npts < 0:
-        raise ValueError(f"Number of grid points, {npts}, must be a positive integer")
+        raise ValueError(f"Number of grid points, {npts}, must be a positive integer.")
 
     x = np.cos(np.arange(npts) * np.pi / (npts - 1))
     if xmin is not None or xmax is not None:
@@ -107,6 +107,8 @@ class Grid(np.ndarray):
         self.npts = None
 
     # TODO: add support of custom mappers with *args (and **kwargs).
+    # TODO: generate axes when not provided (arange).
+    # TODO: support for axes and mappers that are just integer and callable.
     @classmethod
     def from_bounds(cls, *bounds, axes=[], mappers=[]):
         """Create a grid from axes bounds.
@@ -131,7 +133,17 @@ class Grid(np.ndarray):
         Raises
         ------
         ValueError
-            # TODO
+            * If wrong format of bounds (see Parameters).
+            * If number of indices in `axes` != number of mapping functions in
+            `mappers`.
+            * If repetitive indices in `axes`. This also corresponds to the case when
+            there are negative indices referring to the same axes, as the positive
+            ones. For instance, -1 and 2 for 3D grid.
+        TypeError
+            * If wrong formats of `axes` or/and `mappers` (see Parameters).
+            * If elements of `axes` are not integer numbers.
+        IndexError
+            * If indices in `axes` are out of bounds for a grid of a given dimension.
 
         Examples
         --------
@@ -149,9 +161,38 @@ class Grid(np.ndarray):
         for bound in bounds:
             if np.asarray(bound).shape != (3,):
                 raise ValueError(
-                    "Each bound array must have a single dimension and contain three "
-                    "elements in the following order: lower bound, upper bound and "
-                    "number of grid points."
+                    "Wrong bound format: each bound array must have a single dimension"
+                    " and contain three elements in the following order: lower bound, "
+                    "upper bound and number of grid points."
+                )
+        try:
+            if len(axes) != len(mappers):
+                raise ValueError(
+                    "The number of axes must be equal to the number of mappers."
+                )
+        except TypeError as e:
+            raise TypeError(
+                "Axes and mappers must be one-dimensional array-like."
+            ) from e
+
+        if axes:
+            axes = np.asarray(axes)
+            if not axes.dtype == np.intp:
+                raise TypeError("Axes' indices in `axes` must be integer numbers.")
+            ndim = len(bounds)
+            # Convert negative indices to positive ones.
+            axes[axes < 0] = axes[axes < 0] + ndim
+            if (axes > ndim - 1).any():
+                raise IndexError(
+                    f"Axis' index out of bounds for the grid with {ndim} dimensions"
+                    f" in axes. Allowed interval is from {-ndim} to {ndim - 1}."
+                )
+            _, counts = np.unique(axes, return_counts=True)
+            if not (counts == 1).all():
+                raise ValueError(
+                    "All indices in `axes` must be unique. It is advised you check "
+                    "that there are no repetitive values and that negative indices, if"
+                    " present, do not refer to the same axes as the positive ones."
                 )
 
         mapdict = dict(zip(axes, mappers))
@@ -482,7 +523,7 @@ def get_polar_grid(nt, nr, axes=[], mappers=[], fornberg=False, num=None):
 
     Notes
     -----
-        `fornberg`set to True leads to that the radial coordinate r lies on the
+        `fornberg` set to True leads to that the radial coordinate r lies on the
         interval [-1, 1]. Such grid is redundant in the sense that a single point in
         Cartesian coordinates (x, y) will map to two distinct points in Fornberg's
         polar coordinates. However, it allows to use technique of constructing
