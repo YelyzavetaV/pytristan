@@ -75,10 +75,7 @@ def cheb(npts, xmin=None, xmax=None):
 
 
 class Grid(np.ndarray):
-    def __new__(
-        cls,
-        arrs,
-    ):
+    def __new__(cls, arrs):
         mgrids = np.meshgrid(*arrs, indexing="ij")
 
         # Linearize grid representation. Column-major order is adopted. Each coordinate
@@ -382,13 +379,7 @@ def drop_last_grid():
     drop_grid(nitem=1)
 
 
-def get_grid(
-    *args,
-    from_bounds=False,
-    num=None,
-    axes=[],
-    mappers=[],
-):
+def get_grid(*args, from_bounds=False, num=None, axes=[], mappers=[]):
     """Getter and registrator of numerical grids.
 
     Allows re-usage of the same instance of Grid anywhere in the program at run time
