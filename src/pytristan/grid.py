@@ -1,14 +1,17 @@
 """Grid Module
 
-Module provides a Grid class. It subclasses numpy.ndarray and intends to simplify
-certain computational tasks for the user. Coordinate arrays are stored and manipulated
-with in row-major order. The ND numpy arrays produced by numpy.meshgrid can be retrie-
-ved with mgrids method.
+This module provides API to create multi-dimensional grids (meshes). The grid is
+represented by the Python class Grid that directly subclasses numpy.ndarray. All
+coordinate arrays are stored in a linearized order.
 
-Relies on numpy and warnings modules.
-
-* Grid - numpy.ndarray subclass extending its functionality to model N-dimensional
-    structured grid.
+* cheb - function that returns Chebyshev-Gauss-Lobatto points on an arbitrary interval.
+* Grid - Python class that represents a computational grid. Subclasses numpy.ndarray.
+* get_grid - get an existing grid or create a new one and `register' it to the grid
+    manager.
+* get_polar_grid - create and `register' a grid in a polar domain.
+* drop_grid - `unregisters' grids from the grid manager.
+* drop_last_grid - `unregisters' the last created grid from the manager.
+* drop_all_grids - `unregisters' all grids from the manager.
 """
 
 import inspect
@@ -18,12 +21,14 @@ import numpy as np
 from ._manager import ObjectManager
 
 __all__ = [
-    "Grid",
     "cheb",
+    "Grid",
+    "_get_grid_manager",
     "get_grid",
+    "get_polar_grid",
     "drop_grid",
     "drop_last_grid",
-    "_get_grid_manager",
+    "drop_all_grids",
 ]
 
 
@@ -63,9 +68,9 @@ def cheb(npts, xmin=None, xmax=None):
     try:
         npts = operator.index(npts)
     except TypeError as e:
-        raise TypeError("npts must be an integer") from e
+        raise TypeError("npts must be an integer.") from e
     if npts < 0:
-        raise ValueError(f"Number of grid points, {npts}, must be a positive integer")
+        raise ValueError(f"Number of grid points, {npts}, must be a positive integer.")
 
     x = np.cos(np.arange(npts) * np.pi / (npts - 1))
     if xmin is not None or xmax is not None:
@@ -74,12 +79,7 @@ def cheb(npts, xmin=None, xmax=None):
 
 
 class Grid(np.ndarray):
-    def __new__(
-        cls,
-        arrs,
-        geom="cart",
-        fornberg=False,
-    ):
+    def __new__(cls, arrs):
         mgrids = np.meshgrid(*arrs, indexing="ij")
 
         # Linearize grid representation. Column-major order is adopted. Each coordinate
@@ -93,8 +93,6 @@ class Grid(np.ndarray):
 
         obj.ndims = obj.shape[0]  # Number of grid dimensions
         obj.npts = tuple(len(arr) for arr in arrs)
-        obj.geom = geom
-        obj.fornberg = fornberg
 
         return obj
 
@@ -102,7 +100,6 @@ class Grid(np.ndarray):
         if obj is None:
             return
 
-        # FIXME: how do we handle subgrids ids?
         self._num = None
         # Grid is designed in a way that the coordinate arrays are stored in a column-
         # major order. If the Grid instance is created through slicing or view-casting,
@@ -110,35 +107,26 @@ class Grid(np.ndarray):
         # the attributes that are dependent on the ordering.
         self.ndims = None
         self.npts = None
-        # Geometry must be inherited if slicing.
-        self.geom = getattr(obj, "geom", "cart")
-        self.fornberg = getattr(obj, "fornberg", False)
 
     # TODO: add support of custom mappers with *args (and **kwargs).
+    # TODO: generate axes when not provided (arange).
+    # TODO: support for axes and mappers that are just integer and callable.
     @classmethod
-    def from_bounds(
-        cls, xmin, xmax, npts, geom="cart", fornberg=False, axes=[], mappers=[]
-    ):
+    def from_bounds(cls, *bounds, axes=[], mappers=[]):
         """Create a grid from axes bounds.
 
         Parameters
         ----------
-        xmin: array_like
-            Sequence of lower bounds for each directions in the grid.
-        xmax: array_like
-            Sequence of upper bounds for each directions in the grid.
-        npts: array_like
-            Sequence of number of points along each direction in the grid.
-        geom: str
-            Geometry of the grid. Default is 'cart' for Cartesian.
-        axes: array-like
-            Axes, along which, mapping is to be applied.
-        mappers: array-like
-            Mappers to apply along the axes specified.
-            To apply Chebyshev mapping, cheb function should be passed as an element
-            of mappers.
-            Arbitrary mapping functions are supported as well. User must implement a
-            Python function that implements a mapping and returns a np.ndarray.
+        bound0, bound1,..., boundN: array-like
+            Bounds for each dimension. Each bound must be an iterable containing three
+            elements in the following order: lower bound, upper bound, number of points
+            along the given direction. Number of points must be an integer.
+        axes: array-like of int, default=[]
+            Axes, along which mapping is to be applied.
+        mappers: array-like of callable, default=[]
+            Mapping functions to apply along the axes specified. Should be given in the
+            same order as the corresponding axes in `axes`. A custom user-defined
+            mapper must return a coordinate array.
 
         Returns
         -------
@@ -147,71 +135,111 @@ class Grid(np.ndarray):
         Raises
         ------
         ValueError
-            In the following cases:
-            - when len(xmin), len(xmax) and len(npts) don't match
-            - when len(axes) != len(mappers)
+            * If wrong format of bounds (see Parameters).
+            * If number of indices in `axes` != number of mapping functions in
+            `mappers`.
+            * If repetitive indices in `axes`. This also corresponds to the case when
+            there are negative indices referring to the same axes, as the positive
+            ones. For instance, -1 and 2 for 3D grid.
+        TypeError
+            * If wrong formats of `axes` or/and `mappers` (see Parameters).
+            * If elements of `axes` are not integer numbers.
+        IndexError
+            * If indices in `axes` are out of bounds for a grid of a given dimension.
 
         Examples
         --------
-        Create a 2D grid from bounds and apply Gauss-Lobatto mapping along y-axis:
-
-        >>> Grid.from_bounds((0, 10), (1, 15), (3, 9), axes=(1,), mappers=(cheb,))
-        [[ 0.          0.5         1.          0.          0.5         1.
-           0.          0.5         1.          0.          0.5         1.
-           0.          0.5         1.          0.          0.5         1.
-           0.          0.5         1.          0.          0.5         1.
-           0.          0.5         1.        ]
-        [10.         10.         10.         10.19030117 10.19030117 10.19030117
-           10.73223305 10.73223305 10.73223305 11.54329142 11.54329142 11.54329142
-           12.5        12.5        12.5        13.45670858 13.45670858 13.45670858
-           14.26776695 14.26776695 14.26776695 14.80969883 14.80969883 14.80969883
-           15.         15.         15.        ]]
+        >>> from pytristan import Grid
+        Create a 2D grid Cartesian from bounds:
+        >>> Grid.from_bounds((-1.0, 1.0, 3), (-1.0, 1.0, 3))
+        [[-1.  0.  1. -1.  0.  1. -1.  0.  1.]
+         [-1. -1. -1.  0.  0.  0.  1.  1.  1.]]
+        >>> from pytristan import cheb
+        Create a 1D grid based on Chebyshev-Gauss-Lobatto mapping:
+        >>> Grid.from_bounds((0.0, 2.0, 8), axes=[0], mappers=[cheb])
+        [[0.         0.09903113 0.3765102  0.77747907 1.22252093 1.6234898
+          1.90096887 2.        ]]
         """
-        if len(xmin) != len(xmax) or len(xmin) != len(npts):
-            raise ValueError("Lengths of xmin, xmax and npts do not match.")
-        if axes or mappers:
+        for bound in bounds:
+            if np.asarray(bound).shape != (3,):
+                raise ValueError(
+                    "Wrong bound format: each bound array must have a single dimension"
+                    " and contain three elements in the following order: lower bound, "
+                    "upper bound and number of grid points."
+                )
+        try:
             if len(axes) != len(mappers):
-                raise ValueError("Lengths of axes and mappers do not match.")
+                raise ValueError(
+                    "The number of axes must be equal to the number of mappers."
+                )
+        except TypeError as e:
+            raise TypeError(
+                "Axes and mappers must be one-dimensional array-like."
+            ) from e
 
-            if any([not callable(mapper) for mapper in mappers]):
-                raise ValueError()
-            # Collect all mapping data in one dict. Keys are the axes to map along, and
-            # values are the mappers with their arguments.
+        if axes:
+            axes = np.asarray(axes)
+            if not np.issubdtype(axes.dtype, np.integer):
+                raise TypeError("Axes' indices in `axes` must be integer numbers.")
+            ndim = len(bounds)
+            if ((axes > ndim - 1) | (axes < -ndim)).any():
+                raise IndexError(
+                    f"Axis' index out of bounds for the grid with {ndim} dimensions"
+                    f" in axes. Allowed interval is from {-ndim} to {ndim - 1}."
+                )
+            # Convert negative indices to positive ones.
+            axes[axes < 0] = axes[axes < 0] + ndim
+
+            _, counts = np.unique(axes, return_counts=True)
+            if not (counts == 1).all():
+                raise ValueError(
+                    "All indices in `axes` must be unique. It is advised you check "
+                    "that there are no repetitive values and that negative indices, if"
+                    " present, do not refer to the same axes as the positive ones."
+                )
+
         mapdict = dict(zip(axes, mappers))
-
-        # Build 1D coordinate arrays. If no mappers are specified in the direction, it
-        # will be equispaced. Otherwise, attempt will be made to call a mapper function
-        # with the arguments provided, as they were ordered by the user. If 'cheb'
-        # keywords is provided instead of a mapper, arguments will be taken care of
-        # implicitly.
         arrs = tuple(
-            mapdict[ax](n, i, j) if ax in mapdict.keys() else np.linspace(i, j, n)
-            for ax, (n, i, j) in enumerate(zip(npts, xmin, xmax))
+            mapdict[ax](*((bound[2],) + bound[:2]))
+            if ax in axes
+            else np.linspace(*bound)
+            for ax, bound in enumerate(bounds)
         )
 
-        return cls(arrs, geom, fornberg)
+        return cls(arrs)
 
     @classmethod
-    def from_arrs(cls, arrs, geom="cart", fornberg=False):
+    def from_arrs(cls, *arrs):
         """Create a grid from axes bounds.
 
         Parameters
         ----------
-        arrs: iterable filled with 1D array-like
-            1D arrays must represent the axpoints of the grid.
+        arr0, arr1,..., arrN: array_like
+            1D coordinate arrays.
 
         Returns
         -------
-        Constructor of Grid.
+        Instance of Grid.
+
+        Raises
+        ------
+        ValueError
+            In the case if any of the arrs are not one-dimensional array-like.
         """
-        return cls(arrs, geom, fornberg)
+        for arr in arrs:
+            if np.asarray(arr).ndim != 1:
+                raise ValueError(
+                    "Coordinate arrays must be one-dimensional array-like."
+                )
+
+        return cls(arrs)
 
     def __repr__(self):
         if self._num is None:
             msg = "no unique identifier"
         else:
             msg = f"unique identifier: {str(self._num)}"
-        return f"Instance of {type(self).__name__} with {msg}"
+        return f"Instance of {type(self).__name__} with {msg}."
 
     def axpoints(self, axis):
         """Get coordinates along the axis.
@@ -223,18 +251,28 @@ class Grid(np.ndarray):
 
         Returns
         -------
-        np.ndarray
+        numpy.ndarray
             Coordinates along the axis.
 
         Raises
         ------
-        IndexError from ValueError
-            In the case if axis index is out of bounds.
+        TypeError
+            If axis is not integer.
+        IndexError
+            If axis out of bounds.
         """
         try:
-            self.npts[axis]
-        except IndexError as err:
-            raise err from ValueError(f"grid does not have axis {axis} (out of bounds)")
+            operator.index(axis)
+        except TypeError as e:
+            raise TypeError("Axis' index axis must be an integer.") from e
+        if (axis > self.ndims - 1) | (axis < -self.ndims):
+            raise IndexError(
+                f"Axis' index {axis} out of bounds for the grid with {self.ndims} "
+                f"dimensions in axes. Allowed interval is from {-self.ndims} to "
+                f"{self.ndims - 1}."
+            )
+        if axis < 0:
+            axis += self.ndims
 
         imax = int(np.prod(self.npts[: axis + 1]))
         step = int(imax / self.npts[axis])
@@ -242,21 +280,23 @@ class Grid(np.ndarray):
         return np.array(self[axis][:imax:step])
 
     def mgrids(self):
-        """Recover coordinate matrices of shape (n1, n2, n3,...) (the output of)
-            numpy.meshgrid(X, Y, ..., indexing='ij').
+        """Recover coordinate matrices of shape (n1, n2, n3,...).
+
+        Equivalent to the output of numpy.meshgrid(x, y, ..., indexing='ij'), where
+        x, y, ... are the coordinate arrays.
 
         Returns
         -------
-        list
+        list containing 2D numpy.ndarray
             List of meshgrid matrices.
         """
-
         return [mat.reshape(self.npts, order="F") for mat in self]
 
     @property
     def num(self):
         return self._num
 
+    # TODO: allow "registering" grids manually?
     @num.setter
     def num(self, number):
         """Setter of num property.
@@ -285,8 +325,197 @@ def _get_grid_manager(_grid_manager_instance=ObjectManager()):
     return _grid_manager_instance
 
 
+def get_grid(*args, from_bounds=False, axes=[], mappers=[], num=None, overwrite=False):
+    """Get an existing grid or create a new one.
+
+    Allows re-usage of the same instance of Grid during the run time using its unique
+    identifier (num) (see Notes and Examples).
+
+    Parameters
+    ----------
+    arg0, arg1,..., argN: array-like
+        Either 1D coordinate arrays or axes' bounds. If bounds, each bound must be an
+        iterable containing three elements in the following order: lower bound, upper
+        bound, number of points along the given direction. Number of points must be an
+        integer.
+    from_bounds: bool, default=False
+        Whether to create a grid from coordinate arrays or axes' bounds. Must be
+        consistent with *args.
+    axes: array-like of int, default=[]
+        Axes, along which, mapping is to be applied. Only relevant when from_bounds is
+        True.
+    mappers: array-like of callable, default=[]
+        Mapper functions to apply along the axes specified. Should be given in the same
+        order as the corresponding axes in `axes`. A custom user-defined mapper must
+        return a coordinate array.
+    num: int, default=None
+        Unique identifier of a grid. If no value is provided, the grid will be
+        `registered' by num = max(nums) + 1, where nums are all existing identifiers
+        known to the manager. If the manager is empty, num will be equal to 0. If the
+        grid with a given num has already been created using get_grid, it will be
+        returned.
+    overwrite: bool, default=False
+        Determines if the grid with identifier num (when provided) will be overwritten
+        or not.
+
+    Returns
+    -------
+    An instance of Grid.
+
+    Raises
+    ------
+    TypeError
+        If num is not integer.
+    ValueError
+        If grid not found by the manager and no grid data provided.
+
+    Examples
+    --------
+    Re-usage of previously created instances of Grid.
+
+    >>> from pytristan import get_grid
+    Create a 2D cartesian grid from bounds. It will be automatically assigned a num=0.
+    >>> grid = get_grid((-1.0, 1.0, 3), (-1.0, 1.0, 3), from_bounds=True)
+    [[-1.  0.  1. -1.  0.  1. -1.  0.  1.]
+     [-1. -1. -1.  0.  0.  0.  1.  1.  1.]]
+    >>> print(grid.num)
+    0
+    Recover this grid using its unique identifier and verify it.
+    >>> grid0 = get_grid(num=0)
+    By default from_bounds is False, so if we don't specify that from_bounds is True,
+    the following tuples will be interpreted as coordinate arrays with
+    x=[-1.0, 1.0, 3.0].
+    >>> get_grid((-1.0, 1.0, 3), (-1.0, 1.0, 3))
+    [[-1.  1.  3. -1.  1.  3. -1.  1.  3.]
+     [-1. -1. -1.  1.  1.  1.  3.  3.  3.]]
+    """
+    grid_manager = _get_grid_manager()
+
+    if num is None:
+        nums = grid_manager.nums()
+        num = max(nums) + 1 if nums else 0
+    else:
+        try:
+            operator.index(num)
+        except TypeError as e:
+            raise TypeError("Unique identifier num must be an integer") from e
+
+    grid = getattr(grid_manager, str(num), None)
+
+    if grid is None or overwrite:
+        if not args:
+            raise ValueError("Could not create a new grid - no grid data supplied.")
+
+        if from_bounds:
+            grid = Grid.from_bounds(
+                *args,
+                axes=axes,
+                mappers=mappers,
+            )
+        else:
+            grid = Grid.from_arrs(*args)
+
+        grid.num = num
+        setattr(grid_manager, str(num), grid)
+
+    return grid
+
+
+def get_polar_grid(nt, nr, axes=[], mappers=[], fornberg=False, num=None):
+    """Creates a 2D polar grid.
+
+    Parameters
+    ----------
+    nt: int
+        Number of grid points in the azimuthal direction.
+    nr: int
+        Number of grid points in the radial direction.
+    axes: array-like, default=[]
+        Axes along which a mapping is to be applied.
+    mappers: array-like, default=[]
+        Mappers to apply along the axes specified. Should be given in the same order
+        as the corresponding axes in `axes`.
+        To apply Chebyshev mapping, cheb function should be passed as an element of
+        mappers. Arbitrary mapping functions are supported as well. User must implement
+        a Python function that implements a mapping and returns a np.ndarray.
+    fornberg: bool, default=False
+        Whether the Fornberg's grid is requested.
+    num: int, default=None
+        If provided, indicates the identifier of the grid to pass to the grid manager.
+        If no value is provided, the grid will be `registered' by num = max(nums) + 1,
+        where nums are all existing identifiers known to the manager. If the manager is
+        empty, num will be equal to 0. If the grid with a given num has already been
+        `registered', it will be returned.
+
+    Notes
+    -----
+        `fornberg` set to True leads to that the radial coordinate r lies on the
+        interval [-1, 1]. Such grid is redundant in the sense that a single point in
+        Cartesian coordinates (x, y) will map to two distinct points in Fornberg's
+        polar coordinates. However, it allows to use technique of constructing
+        matrices of differential operators, as described in [1] and [2]. This technique
+        spares one a necessity to treat the pole (r=0) in circular coordinate system as
+        a boundary and helps avoid the clustering of the grid points near r=0.
+
+    References
+    ----------
+    .. [1] B. Fornberg, "A Pseudospectral Approach for Polar and Spherical Geometries",
+           SIAM J. Sci. Comp., 16(5):1071-1081, 1995.
+    .. [2] L. Trefethen, "Spectral Methods in MATLAB", SIAM, Philadelphia, 2000.
+
+    Examples
+    --------
+    >>> from pytristan import get_polar_grid, cheb
+    Create a 2D polar grid with no streching and r in [0, 1]
+    >>> get_polar_grid(4, 6)
+    [[-3.14159265 -1.57079633  0.          1.57079633 -3.14159265 -1.57079633
+       0.          1.57079633 -3.14159265 -1.57079633  0.          1.57079633
+      -3.14159265 -1.57079633  0.          1.57079633 -3.14159265 -1.57079633
+       0.          1.57079633 -3.14159265 -1.57079633  0.          1.57079633]
+     [ 0.          0.          0.          0.          0.2         0.2
+       0.2         0.2         0.4         0.4         0.4         0.4
+       0.6         0.6         0.6         0.6         0.8         0.8
+       0.8         0.8         1.          1.          1.          1.        ]]
+
+    Create a 2D polar grid with streching in radial direction and r in [0, 1]
+    >>> get_polar_grid(4, 6, axes=[1], mappers=[cheb])
+    [[-3.14159265 -1.57079633  0.          1.57079633 -3.14159265 -1.57079633
+       0.          1.57079633 -3.14159265 -1.57079633  0.          1.57079633
+      -3.14159265 -1.57079633  0.          1.57079633 -3.14159265 -1.57079633
+       0.          1.57079633 -3.14159265 -1.57079633  0.          1.57079633]
+     [ 0.          0.          0.          0.          0.0954915   0.0954915
+       0.0954915   0.0954915   0.3454915   0.3454915   0.3454915   0.3454915
+       0.6545085   0.6545085   0.6545085   0.6545085   0.9045085   0.9045085
+       0.9045085   0.9045085   1.          1.          1.          1.        ]]
+
+    Create a 2D polar grid with grid streching in radial direction and r in [-1, 1].
+    This grid is of Fornberg type and will have nr = 12 points in the radial direction
+    >>> grid = get_polar_grid(4, 6, fornberg=True, axes=[1], mappers=[cheb])
+    >>> grid.axpoints(1)
+    [-1.         -0.95949297 -0.84125353 -0.65486073 -0.41541501 -0.14231484
+      0.14231484  0.41541501  0.65486073  0.84125353  0.95949297  1.        ]
+    """
+    if fornberg:
+        nr *= 2
+        rmin = -1.0
+    else:
+        rmin = 0.0
+
+    return get_grid(
+        (-np.pi, np.pi - 2.0 * np.pi / nt, nt),
+        (rmin, 1.0, nr),
+        from_bounds=True,
+        num=num,
+        axes=axes,
+        mappers=mappers,
+    )
+
+
 def drop_grid(num=None, nitem=0):
     """Allows to remove (drop) one or more grids from the grid manager.
+
+    num or nitem != 0 should not be both passed as arguments in the same
+    call to the function (see Examples).
 
     Parameters
     ----------
@@ -297,10 +526,18 @@ def drop_grid(num=None, nitem=0):
         Number of grids to drop starting from the end of the list of grids
         stored in the grid manager. Default is 0.
 
-    Notes
-    -----
-    num or nitem != 0 should not be both passed as arguments in the same
-    call to the function (see examples below).
+    Raises
+    ------
+    TypeError
+        * If nitem is not an integer.
+        * If num is neither None, nor the integer or the array-like of integers.
+    ValueError
+        * If nitem is not a positive number.
+        * If num is not None and nitem != 0: ambiguity.
+        * If num has more than one dimension.
+    RuntimeWarning
+        * If num is None and nitem == 0: do nothing behaviour.
+        * If no grids found with indices specified in num.
 
     Examples
     --------
@@ -319,158 +556,55 @@ def drop_grid(num=None, nitem=0):
     >>> print(grid_manager.nums())
     []
     """
+    try:
+        nitem = operator.index(nitem)
+    except TypeError as e:
+        raise TypeError("Number of drop items nitem must be an integer.") from e
+    if nitem < 0:
+        raise ValueError("Number of drop items nitem must be a positive integer.")
 
     grid_manager = _get_grid_manager()
-
     if num is None:
-        if nitem == 0:
-            warnings.warn("No grids were dropped because num=None and nitem=0")
+        if not nitem:
+            warnings.warn(
+                "No grids were dropped because num is None and nitem=0.", RuntimeWarning
+            )
+            return  # To ensure "do-nothing" behaviour
         nums = grid_manager.nums()
         drops = nums[-1 : -nitem - 1 : -1]
     else:
-        if nitem > 0:
-            raise ValueError("num can only be used alongside nitem=0")
-        drops = [num] if isinstance(num, int) else num
+        if nitem:
+            raise ValueError(
+                "Providing num different from None and nitem different from 0 at the "
+                "same time is ambiguous. To drop N last grid(s) from the manager AND "
+                "to drop grid(s) with particular identifier(s), you have to perform "
+                "two consecutive calls to drop_grid (see documentation)."
+            )
+        drops = np.asarray(num)
+        if not np.issubdtype(drops.dtype, np.integer):
+            raise TypeError("num must be an integer or an array-like of integers.")
+        if drops.ndim != 1:
+            if not drops.ndim:
+                drops = drops[np.newaxis]
+            else:
+                raise ValueError("num cannot have more that one dimension.")
 
     for drop in drops:
-        delattr(grid_manager, str(drop))
+        try:
+            delattr(grid_manager, str(drop))
+        except AttributeError:
+            warnings.warn(
+                f"Grid with identifier {drop} could not be dropped as it's not "
+                f"registered in the manager.",
+                RuntimeWarning,
+            )
 
 
 def drop_last_grid():
     """Shortcut for dropping the last grid contained in the grid manager."""
-
     drop_grid(nitem=1)
 
 
-def get_grid(
-    num=None,
-    arrs=None,
-    xmin=None,
-    xmax=None,
-    npts=None,
-    geom="cart",
-    fornberg=False,
-    axes=[],
-    mappers=[],
-):
-    """Getter and registrator of numerical grids.
-
-    Allows re-usage of the same instance of Grid anywhere in the program at run time
-    using unique identifier (num) of this instance (see Notes and Examples).
-
-    Parameters
-    ----------
-    num: int or None
-    arrs: iterable filled with 1D array-like or None
-        If provided, 1D arrays must represent the axpoints of the grid. Default is None.
-    xmin: array_like or None
-        If provided, sequence of lower bounds for each directions in the grid. Default
-        is None.
-    xmax: array_like or None
-        If provided, sequence of upper bounds for each directions in the grid. Default
-        is None.
-    npts: array_like or None
-        If provided, sequence of number of points along each direction in the grid.
-        Default is None.
-    geom: str
-        Geometry of the grid. Default is "cart" (Cartesian). Will be ignored, if an
-        instance is retrieved from a manager by its id (this instance will have its own
-        value of geom).
-    fornberg: bool
-        Whether the Fornberg grid is requested. Default is False. Will be ignored, if an
-        instance is retrieved from a manager by its num (this instance will have its own
-        value of fornberg).
-    axes: array-like
-        Axes, along which, mapping is to be applied. Default is an empty list.
-    mappers: array-like
-        Mappers to apply along the axes specified.
-        To apply Chebyshev mapping, cheb function should be passed as an element of
-        mappers.
-        Arbitrary mapping functions are supported as well. User must implement a
-        Python function that implements a mapping and returns a np.ndarray. Default is
-        an empty list.
-
-    Examples
-    --------
-    Re-usage of previously created instances of Grid.
-
-    >>> from pytristan import get_grid, cheb
-    >>> # Create some 2D grid.
-    >>> grid = get_grid(
-            xmin=[-1, -1],
-            xmax=[1, 1],
-            npts=[100, 50],
-            axes=[0, 1],
-            mappers=[cheb, cheb],
-        )
-    >>> # Since it's the first instance of Grid create at the run time, will have num
-    >>> # equal to 0.
-    >>> print(grid.num)
-    0
-    >>> grid0 = get_grid(num=0)
-    >>> # Assert will pass.
-    >>> assert grid.num == grid0.num and id(grid) == id(grid0)
-    >>> # Create some other grid.
-    >>> grid = get_grid(
-            xmin=[0],
-            xmax=[10],
-            npts=[11],
-        )
-    >>> # This instance will have id equal to 1.
-    >>> grid1 = get_grid(num=1)
-    >>> assert grid.num == grid1.num and id(grid) == id(grid1)
-    >>> # Other previously created instances can be retrieved at any time.
-    >>> grid = get_grid(num=0)
-    >>> assert grid.num == grid0.num and num(grid) == num(grid0)
-
-    Usage of `fornberg` flag.
-
-    Notes
-    -----
-    If an instance of a grid with an identifier (num) provided by the user has already
-    been created using get_grid, this same instance will be returned. If num is not
-    provided or no instance under num provided exists, a new instance will be created.
-    An identifier of a newly created instance will be that provided by a user (in the
-    case it was provided), 0 if manager's collection is empty, or max(ids) + 1, where
-    ids is a list of all ids known to the manager.
-    """
-
-    grid_manager = _get_grid_manager()
-
-    if num is None:
-        nums = grid_manager.nums()
-        num = max(nums) + 1 if nums else 0
-
-    grid = getattr(grid_manager, str(num), None)
-
-    if grid is None:
-        if all((arrs is None, xmin is None, xmax is None, npts is None)):
-            raise ValueError("Could not create a new grid - no grid data supplied.")
-
-        if arrs is not None:
-            grid = Grid.from_arrs(arrs, geom)
-        # Treat special cases, for example polar or spherical geometries, for which the
-        # coordinate arrays bounds are fixed.
-        elif "polar" in geom:
-            # TODO: spherical geometry is yet to be implemented and it will surely have
-            # shared blocks of code with polar geometry implementation.
-            if xmin is not None or xmax is not None:
-                warnings.warn(
-                    "Polar grid does not support custom values of xmin and xmax. "
-                    " Supplied. values will be ignored."
-                )
-
-            if fornberg:
-                npts[-1] *= 2
-
-            xmin = -np.pi, -1.0 if fornberg else 0.0
-            xmax = np.pi - 2.0 * np.pi / npts[0], 1.0
-
-            grid = Grid.from_bounds(xmin, xmax, npts, geom, fornberg, axes, mappers)
-        else:
-            grid = Grid.from_bounds(xmin, xmax, npts, geom, fornberg, axes, mappers)
-
-        grid.num = num
-        setattr(grid_manager, str(num), grid)
-
-    return grid
+def drop_all_grids():
+    """Shortcut for dropping all grids contained in the grid manager."""
+    drop_grid(num=_get_grid_manager().nums())
