@@ -155,7 +155,7 @@ def test_get_grid_overwrite():
     assert_array_almost_equal(grid3, get_grid(num=2))
 
     # Drop all grids
-    drop_grid(num=(_get_grid_manager().nums()))
+    drop_all_grids()
 
 
 def test_get_grid_polar_coords():
