@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="pytristan",
-    version="0.1a",
+    version="0.2a",
     author="Yelyzaveta Velizhanina and Bernard Knaepen",
     author_email="velizhaninae@gmail.com",
     description="Differential operators in Python",
