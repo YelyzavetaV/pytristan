@@ -253,7 +253,27 @@ class Grid(np.ndarray):
         -------
         numpy.ndarray
             Coordinates along the axis.
+
+        Raises
+        ------
+        TypeError
+            If axis is not integer.
+        IndexError
+            If axis out of bounds.
         """
+        try:
+            operator.index(axis)
+        except TypeError as e:
+            raise TypeError("Axis' index axis must be an integer.") from e
+        if (axis > self.ndims - 1) | (axis < -self.ndims):
+            raise IndexError(
+                f"Axis' index {axis} out of bounds for the grid with {self.ndims} "
+                f"dimensions in axes. Allowed interval is from {-self.ndims} to "
+                f"{self.ndims - 1}."
+            )
+        if axis < 0:
+            axis += self.ndims
+
         imax = int(np.prod(self.npts[: axis + 1]))
         step = int(imax / self.npts[axis])
 

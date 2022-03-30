@@ -106,6 +106,23 @@ def test_grid_from_arrs():
     assert_array_equal(arr, grid)
 
 
+def test_grid_axpoints_raises():
+    grid = Grid.from_bounds([0.0, 1.0, 2])
+    with pytest.raises(TypeError):
+        grid.axpoints(0.0)
+    with pytest.raises(IndexError):
+        grid.axpoints(1)
+        grid.axpoints(-2)
+
+
+def test_grid_axpoints():
+    grid = Grid.from_bounds([0.0, 1.0, 2], [-1.0, 1.0, 3])
+
+    assert_array_almost_equal(grid.axpoints(0), np.asarray([0.0, 1.0]))
+    assert_array_almost_equal(grid.axpoints(1), np.asarray([-1.0, 0.0, 1.0]))
+    assert_array_almost_equal(grid.axpoints(-2), np.asarray([0.0, 1.0]))
+
+
 def test_get_grid_from_bounds():
     grid1 = Grid.from_bounds((0.0, 1.0, 2), (-2.0, 2.0, 4))
     grid2 = get_grid((0.0, 1.0, 2), (-2.0, 2.0, 4), from_bounds=True)
