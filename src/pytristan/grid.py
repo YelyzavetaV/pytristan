@@ -182,13 +182,14 @@ class Grid(np.ndarray):
             if not np.issubdtype(axes.dtype, np.integer):
                 raise TypeError("Axes' indices in `axes` must be integer numbers.")
             ndim = len(bounds)
-            # Convert negative indices to positive ones.
-            axes[axes < 0] = axes[axes < 0] + ndim
-            if (axes > ndim - 1).any():
+            if ((axes > ndim - 1) | (axes < -ndim)).any():
                 raise IndexError(
                     f"Axis' index out of bounds for the grid with {ndim} dimensions"
                     f" in axes. Allowed interval is from {-ndim} to {ndim - 1}."
                 )
+            # Convert negative indices to positive ones.
+            axes[axes < 0] = axes[axes < 0] + ndim
+
             _, counts = np.unique(axes, return_counts=True)
             if not (counts == 1).all():
                 raise ValueError(
