@@ -177,7 +177,7 @@ class Grid(np.ndarray):
 
         if axes:
             axes = np.asarray(axes)
-            if not axes.dtype == np.intp:
+            if not np.issubdtype(axes.dtype, np.integer):
                 raise TypeError("Axes' indices in `axes` must be integer numbers.")
             ndim = len(bounds)
             # Convert negative indices to positive ones.
@@ -520,19 +520,16 @@ def drop_grid(num=None, nitem=0):
     >>> print(grid_manager.nums())
     []
     """
-    grid_manager = _get_grid_manager()
-    # We need to ensure that nitem is positive to avoid unexpected content of drops
-    # when slicing nums. This is the reason why I'm also checking that nitem is integer
-    # - to avoid triggering a TypeError when checking that nitem is not negative.
     try:
         nitem = operator.index(nitem)
     except TypeError as e:
-        raise TypeError("nitem must be an integer.") from e
+        raise TypeError("Number of drop items nitem must be an integer.") from e
     if nitem < 0:
-        raise ValueError("nitem must be a positive integer.")
+        raise ValueError("Number of drop items nitem must be a positive integer.")
 
+    grid_manager = _get_grid_manager()
     if num is None:
-        if nitem == 0:
+        if not nitem:
             warnings.warn(
                 "No grids were dropped because num is None and nitem=0.", RuntimeWarning
             )
@@ -540,23 +537,13 @@ def drop_grid(num=None, nitem=0):
         nums = grid_manager.nums()
         drops = nums[-1 : -nitem - 1 : -1]
     else:
-        if nitem > 0:
+        if nitem:
             raise ValueError(
                 "Providing num different from None and nitem different from 0 at the "
                 "same time is ambiguous. To drop N last grid(s) from the manager AND "
                 "to drop grid(s) with particular identifier(s), you have to perform "
                 "two consecutive calls to drop_grid (see documentation)."
             )
-        # This way we first check if num is just integer. operator.index is more broad
-        # than isinstance(num, int). The latter will return False when some specialized
-        # integer type is passed (for example np.int16(num)).
-        #
-        # If num is not an integer to begin with, it's gonna be too hideous to try to
-        # check its type. I propose we create an array and allow trying to drop the
-        # grids, and if they don't exist in manager, it doesn't matter, what's the type
-        # of num. This is rather a "permissive" way to proceed. However, checking the
-        # ndim of drops will trigger an error in some cases when the user passes num
-        # of weird type - string for example.
         try:
             operator.index(num)
         except TypeError:
