@@ -195,3 +195,20 @@ def test_drop_grid_num():
     drop_grid(nitem=2)
 
     assert grid_manager.nums() == []
+
+
+def test_grid_overwrite():
+    # Initial grid
+    grid1 = get_grid((0.0, 1.0, 5), from_bounds=True, num=2)
+
+    # Retrieval of previous grid
+    grid2 = get_grid(num=2)
+    assert id(grid1) == id(grid2)
+
+    # Overwriting of previous grid and check allocation
+    grid3 = get_grid((0.0, 2.0, 6), from_bounds=True, num=2, overwrite=True)
+    assert grid1.num == grid3.num and id(grid1) != id(grid3)
+    assert_array_almost_equal(grid3.axpoints(0), np.linspace(0.0, 2.0, 6))
+
+    # Drop all grids
+    drop_grid(num=(_get_grid_manager().nums()))
