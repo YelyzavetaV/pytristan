@@ -6,11 +6,12 @@ coordinate arrays are stored in a linearized order.
 
 * cheb - function that returns Chebyshev-Gauss-Lobatto points on an arbitrary interval.
 * Grid - Python class that represents a computational grid. Subclasses numpy.ndarray.
-* drop_grid - `unregisters' grids from the grid manager.
-* drop_last_grid - `unregisters` the last created grid from the manager.
 * get_grid - get an existing grid or create a new one and `register' it to the grid
     manager.
 * get_polar_grid - create and `register' a grid in a polar domain.
+* drop_grid - `unregisters' grids from the grid manager.
+* drop_last_grid - `unregisters' the last created grid from the manager.
+* drop_all_grids - `unregisters' all grids from the manager.
 """
 
 import inspect
@@ -27,6 +28,7 @@ __all__ = [
     "get_polar_grid",
     "drop_grid",
     "drop_last_grid",
+    "drop_all_grids",
 ]
 
 
@@ -576,3 +578,8 @@ def drop_grid(num=None, nitem=0):
 def drop_last_grid():
     """Shortcut for dropping the last grid contained in the grid manager."""
     drop_grid(nitem=1)
+
+
+def drop_all_grids():
+    """Shortcut for dropping all grids contained in the grid manager."""
+    drop_grid(num=_get_grid_manager().nums())
