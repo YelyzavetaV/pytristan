@@ -91,7 +91,7 @@ class Grid(np.ndarray):
 
         obj._num = None  # Unique identifier of the grid
 
-        obj.ndims = obj.shape[0]  # Number of grid dimensions
+        obj.num_dim = obj.shape[0]  # Number of grid dimensions
         obj.npts = tuple(len(arr) for arr in arrs)
 
         return obj
@@ -105,7 +105,7 @@ class Grid(np.ndarray):
         # major order. If the Grid instance is created through slicing or view-casting,
         # it becomes the responsibility of the user to ensure correct shaping and set
         # the attributes that are dependent on the ordering.
-        self.ndims = None
+        self.num_dim = None
         self.npts = None
 
     # TODO: add support of custom mappers with *args (and **kwargs).
@@ -265,14 +265,14 @@ class Grid(np.ndarray):
             operator.index(axis)
         except TypeError as e:
             raise TypeError("Axis' index axis must be an integer.") from e
-        if (axis > self.ndims - 1) | (axis < -self.ndims):
+        if (axis > self.num_dim - 1) | (axis < -self.num_dim):
             raise IndexError(
-                f"Axis' index {axis} out of bounds for the grid with {self.ndims} "
-                f"dimensions in axes. Allowed interval is from {-self.ndims} to "
-                f"{self.ndims - 1}."
+                f"Axis' index {axis} out of bounds for the grid with {self.num_dim} "
+                f"dimensions in axes. Allowed interval is from {-self.num_dim} to "
+                f"{self.num_dim - 1}."
             )
         if axis < 0:
-            axis += self.ndims
+            axis += self.num_dim
 
         imax = int(np.prod(self.npts[: axis + 1]))
         step = int(imax / self.npts[axis])
