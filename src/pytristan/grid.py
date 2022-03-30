@@ -23,10 +23,10 @@ __all__ = [
     "cheb",
     "Grid",
     "_get_grid_manager",
-    "drop_grid",
-    "drop_last_grid",
     "get_grid",
     "get_polar_grid",
+    "drop_grid",
+    "drop_last_grid",
 ]
 
 
@@ -338,7 +338,10 @@ def get_grid(*args, from_bounds=False, axes=[], mappers=[], num=None):
 
     Raises
     ------
-    # TODO
+    TypeError
+        If num is not integer.
+    ValueError
+        If grid not found by the manager and no grid data provided.
 
     Examples
     --------

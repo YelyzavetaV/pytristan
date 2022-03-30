@@ -126,6 +126,8 @@ def test_get_grid_from_arrs():
 def test_get_grid_raises():
     with pytest.raises(TypeError):
         get_grid(num=1.0)
+    with pytest.raises(ValueError):
+        get_grid(num=1)
 
 
 def test_get_grid_num():
