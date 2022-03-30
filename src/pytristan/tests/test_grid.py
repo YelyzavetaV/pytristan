@@ -201,6 +201,7 @@ def test_drop_grid_raises():
     with pytest.raises(ValueError):
         drop_grid(nitem=-1)
         drop_grid(num=2, nitem=1)
+        drop_grid(num=[[0], [1]])
     with pytest.warns(RuntimeWarning):
         drop_grid()
         drop_grid(num=10)

@@ -534,6 +534,7 @@ def drop_grid(num=None, nitem=0):
     ValueError
         * If nitem is not a positive number.
         * If num is not None and nitem != 0: ambiguity.
+        * If num has more than one dimension.
     RuntimeWarning
         * If num is None and nitem == 0: do nothing behaviour.
         * If no grids found with indices specified in num.
@@ -582,8 +583,11 @@ def drop_grid(num=None, nitem=0):
         drops = np.asarray(num)
         if not np.issubdtype(drops.dtype, np.integer):
             raise TypeError("num must be an integer or an array-like of integers.")
-        if not drops.ndim:
-            drops = drops[np.newaxis]
+        if drops.ndim != 1:
+            if not drops.ndim:
+                drops = drops[np.newaxis]
+            else:
+                raise ValueError("num cannot have more that one dimension.")
 
     for drop in drops:
         try:
