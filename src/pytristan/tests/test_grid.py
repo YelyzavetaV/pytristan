@@ -123,6 +123,11 @@ def test_get_grid_from_arrs():
     drop_last_grid()
 
 
+def test_get_grid_raises():
+    with pytest.raises(TypeError):
+        get_grid(num=1.0)
+
+
 def test_get_grid_num():
     # Grid retrieval test.
     grid1 = get_grid(np.linspace(0.0, 1.0, 5), np.linspace(0.0, 1.0, 5), num=99)
