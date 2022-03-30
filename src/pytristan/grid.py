@@ -459,13 +459,17 @@ def get_grid(*args, from_bounds=False, axes=[], mappers=[], num=None):
     if num is None:
         nums = grid_manager.nums()
         num = max(nums) + 1 if nums else 0
+    else:
+        try:
+            operator.index(num)
+        except TypeError as e:
+            raise TypeError("Unique identifier num must be an integer") from e
 
     grid = getattr(grid_manager, str(num), None)
 
     if grid is None:
         if not args:
             raise ValueError("Could not create a new grid - no grid data supplied.")
-        # TODO: it'd be good to use `switch` here when moved to Python 3.10.
 
         if from_bounds:
             grid = Grid.from_bounds(
