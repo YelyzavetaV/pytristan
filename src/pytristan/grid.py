@@ -302,100 +302,6 @@ def _get_grid_manager(_grid_manager_instance=ObjectManager()):
     return _grid_manager_instance
 
 
-def drop_grid(num=None, nitem=0):
-    """Allows to remove (drop) one or more grids from the grid manager.
-
-    num or nitem != 0 should not be both passed as arguments in the same
-    call to the function (see Examples).
-
-    Parameters
-    ----------
-    num: int or array-like of int
-        If provided, indicates the identifiers of the grids to be dropped from
-        the list of grids stored in the grid manager. Default is None.
-    nitem: int
-        Number of grids to drop starting from the end of the list of grids
-        stored in the grid manager. Default is 0.
-
-    Examples
-    --------
-    >>> grid_manager = _get_grid_manager()
-    >>> print(grid_manager.nums())
-    [0, 1, 2, 3, 4]
-    >>> drop_grid(num=[0, 3]) # drops grids with identifiers 0 and 3.
-    >>> print(grid_manager.nums())
-    [1, 2, 4]
-    >>> drop_grid(2) # drops grid with identifier 3.
-    >>> print(grid_manager.nums())
-    [1, 4]
-    >>> drop_grid(num=3, nitem=2) # raises an error
-    ValueError: num can only be used alongside nitem=0
-    >>> drop_grid(nitem=2) # drops the last two grids from the grid manager.
-    >>> print(grid_manager.nums())
-    []
-    """
-    grid_manager = _get_grid_manager()
-    # We need to ensure that nitem is positive to avoid unexpected content of drops
-    # when slicing nums. This is the reason why I'm also checking that nitem is integer
-    # - to avoid triggering a TypeError when checking that nitem is not negative.
-    try:
-        nitem = operator.index(nitem)
-    except TypeError as e:
-        raise TypeError("nitem must be an integer.") from e
-    if nitem < 0:
-        raise ValueError("nitem must be a positive integer.")
-
-    if num is None:
-        if nitem == 0:
-            warnings.warn(
-                "No grids were dropped because num is None and nitem=0.", RuntimeWarning
-            )
-            return  # To ensure "do-nothing" behaviour
-        nums = grid_manager.nums()
-        drops = nums[-1 : -nitem - 1 : -1]
-    else:
-        if nitem > 0:
-            raise ValueError(
-                "Providing num different from None and nitem different from 0 at the "
-                "same time is ambiguous. To drop N last grid(s) from the manager AND "
-                "to drop grid(s) with particular identifier(s), you have to perform "
-                "two consecutive calls to drop_grid (see documentation)."
-            )
-        # This way we first check if num is just integer. operator.index is more broad
-        # than isinstance(num, int). The latter will return False when some specialized
-        # integer type is passed (for example np.int16(num)).
-        #
-        # If num is not an integer to begin with, it's gonna be too hideous to try to
-        # check its type. I propose we create an array and allow trying to drop the
-        # grids, and if they don't exist in manager, it doesn't matter, what's the type
-        # of num. This is rather a "permissive" way to proceed. However, checking the
-        # ndim of drops will trigger an error in some cases when the user passes num
-        # of weird type - string for example.
-        try:
-            operator.index(num)
-        except TypeError:
-            drops = np.asarray(num)
-        else:
-            drops = np.asarray([num])
-        if drops.ndim == 0:
-            raise TypeError("num must be an interger of an array-like of integers.")
-
-    for drop in drops:
-        try:
-            delattr(grid_manager, str(drop))
-        except AttributeError:
-            warnings.warn(
-                f"Grid with identifier {drop} could not be dropped as it's not "
-                f"registered in the manager.",
-                RuntimeWarning,
-            )
-
-
-def drop_last_grid():
-    """Shortcut for dropping the last grid contained in the grid manager."""
-    drop_grid(nitem=1)
-
-
 def get_grid(*args, from_bounds=False, axes=[], mappers=[], num=None, overwrite=False):
     """Get an existing grid or create a new one.
 
@@ -473,7 +379,7 @@ def get_grid(*args, from_bounds=False, axes=[], mappers=[], num=None, overwrite=
 
     grid = getattr(grid_manager, str(num), None)
 
-    if grid is None or overwrite is True:
+    if grid is None or overwrite:
         if not args:
             raise ValueError("Could not create a new grid - no grid data supplied.")
 
@@ -580,3 +486,97 @@ def get_polar_grid(nt, nr, axes=[], mappers=[], fornberg=False, num=None):
         axes=axes,
         mappers=mappers,
     )
+
+
+def drop_grid(num=None, nitem=0):
+    """Allows to remove (drop) one or more grids from the grid manager.
+
+    num or nitem != 0 should not be both passed as arguments in the same
+    call to the function (see Examples).
+
+    Parameters
+    ----------
+    num: int or array-like of int
+        If provided, indicates the identifiers of the grids to be dropped from
+        the list of grids stored in the grid manager. Default is None.
+    nitem: int
+        Number of grids to drop starting from the end of the list of grids
+        stored in the grid manager. Default is 0.
+
+    Examples
+    --------
+    >>> grid_manager = _get_grid_manager()
+    >>> print(grid_manager.nums())
+    [0, 1, 2, 3, 4]
+    >>> drop_grid(num=[0, 3]) # drops grids with identifiers 0 and 3.
+    >>> print(grid_manager.nums())
+    [1, 2, 4]
+    >>> drop_grid(2) # drops grid with identifier 3.
+    >>> print(grid_manager.nums())
+    [1, 4]
+    >>> drop_grid(num=3, nitem=2) # raises an error
+    ValueError: num can only be used alongside nitem=0
+    >>> drop_grid(nitem=2) # drops the last two grids from the grid manager.
+    >>> print(grid_manager.nums())
+    []
+    """
+    grid_manager = _get_grid_manager()
+    # We need to ensure that nitem is positive to avoid unexpected content of drops
+    # when slicing nums. This is the reason why I'm also checking that nitem is integer
+    # - to avoid triggering a TypeError when checking that nitem is not negative.
+    try:
+        nitem = operator.index(nitem)
+    except TypeError as e:
+        raise TypeError("nitem must be an integer.") from e
+    if nitem < 0:
+        raise ValueError("nitem must be a positive integer.")
+
+    if num is None:
+        if nitem == 0:
+            warnings.warn(
+                "No grids were dropped because num is None and nitem=0.", RuntimeWarning
+            )
+            return  # To ensure "do-nothing" behaviour
+        nums = grid_manager.nums()
+        drops = nums[-1 : -nitem - 1 : -1]
+    else:
+        if nitem > 0:
+            raise ValueError(
+                "Providing num different from None and nitem different from 0 at the "
+                "same time is ambiguous. To drop N last grid(s) from the manager AND "
+                "to drop grid(s) with particular identifier(s), you have to perform "
+                "two consecutive calls to drop_grid (see documentation)."
+            )
+        # This way we first check if num is just integer. operator.index is more broad
+        # than isinstance(num, int). The latter will return False when some specialized
+        # integer type is passed (for example np.int16(num)).
+        #
+        # If num is not an integer to begin with, it's gonna be too hideous to try to
+        # check its type. I propose we create an array and allow trying to drop the
+        # grids, and if they don't exist in manager, it doesn't matter, what's the type
+        # of num. This is rather a "permissive" way to proceed. However, checking the
+        # ndim of drops will trigger an error in some cases when the user passes num
+        # of weird type - string for example.
+        try:
+            operator.index(num)
+        except TypeError:
+            drops = np.asarray(num)
+        else:
+            drops = np.asarray([num])
+        if drops.ndim == 0:
+            raise TypeError("num must be an interger of an array-like of integers.")
+
+    for drop in drops:
+        try:
+            delattr(grid_manager, str(drop))
+        except AttributeError:
+            warnings.warn(
+                f"Grid with identifier {drop} could not be dropped as it's not "
+                f"registered in the manager.",
+                RuntimeWarning,
+            )
+
+
+def drop_last_grid():
+    """Shortcut for dropping the last grid contained in the grid manager."""
+    drop_grid(nitem=1)
