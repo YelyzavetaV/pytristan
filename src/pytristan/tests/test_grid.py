@@ -160,21 +160,14 @@ def test_get_grid_polar_coords():
 
 
 def test_drop_grid_raises():
-    # Error test (check if nitem is a positive integer and a permissive check for num).
     with pytest.raises(TypeError):
         drop_grid(nitem=5.5)
-        drop_grid(nitem=-1)
-        drop_grid(num="10")
-    # Warning test (no arguments passed).
-    with pytest.warns(
-        RuntimeWarning, match="No grids were dropped because num is None and nitem=0."
-    ):
-        drop_grid()
-    # Error test (num and nitem passed in the same call and nitem != 0).
+        drop_grid(num=[1.0, 0])
     with pytest.raises(ValueError):
+        drop_grid(nitem=-1)
         drop_grid(num=2, nitem=1)
-    # Warning test (trying to drop a grid that is not registered).
     with pytest.warns(RuntimeWarning):
+        drop_grid()
         drop_grid(num=10)
 
 

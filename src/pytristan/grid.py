@@ -503,6 +503,18 @@ def drop_grid(num=None, nitem=0):
         Number of grids to drop starting from the end of the list of grids
         stored in the grid manager. Default is 0.
 
+    Raises
+    ------
+    TypeError
+        * If nitem is not an integer.
+        * If num is neither None, nor the integer or the array-like of integers.
+    ValueError
+        * If nitem is not a positive number.
+        * If num is not None and nitem != 0: ambiguity.
+    RuntimeWarning
+        * If num is None and nitem == 0: do nothing behaviour.
+        * If no grids found with indices specified in num.
+
     Examples
     --------
     >>> grid_manager = _get_grid_manager()
@@ -544,14 +556,11 @@ def drop_grid(num=None, nitem=0):
                 "to drop grid(s) with particular identifier(s), you have to perform "
                 "two consecutive calls to drop_grid (see documentation)."
             )
-        try:
-            operator.index(num)
-        except TypeError:
-            drops = np.asarray(num)
-        else:
-            drops = np.asarray([num])
-        if drops.ndim == 0:
-            raise TypeError("num must be an interger of an array-like of integers.")
+        drops = np.asarray(num)
+        if not np.issubdtype(drops.dtype, np.integer):
+            raise TypeError("num must be an integer or an array-like of integers.")
+        if not drops.ndim:
+            drops = drops[np.newaxis]
 
     for drop in drops:
         try:
