@@ -17,13 +17,13 @@ The dedicated mesh's (`Grid`) and DO's (`FourMat`, `ChebMat`, `FinDiffMat`) obje
 
 ## *Simple API to treat cases of special geometry*
 
-pytristan provides simplified interface to treat some specific cases, such as, for instance, *polar geometry*. Besides, there are pre-defined *mapping* functions in case the user aims to build a non-uniform mesh. It is as well possible to define your own mappers and apply them as easily, as the pre-defined ones.
+pytristan provides simplified interfaces to treat some specific cases, such as, for instance, *polar geometry*. Besides, there are pre-defined *mapping* functions in case the user aims to build a non-uniform mesh. It is also possible to define custom mappers and apply them as easily as the pre-defined ones.
 
-However, you can always opt for a more manual approach to construct the same objects using generic interface, thus enjoying more flexibility and control over your program.
+For complete flexibility and control over the program, the user can opt for a more manual approach to construct the same objects using a generic interface.
 
 ## *Re-usage of once allocated objects*
 
-If it's necessary to re-use the same mesh or DO multiple times in the same program, pytristan spares a user the need to reconstruct them or repeatedly pass their variables between functions. Once allocated, they can be extracted from memory by calling a dedicated getter function with simple interface *anywhere in the same program*.
+If it's necessary to re-use the same mesh or DO multiple times in the same program, pytristan spares a user the need to reconstruct them or repeatedly pass their variables between functions. Once allocated, they can be extracted from memory by calling a dedicated getter function with a simple interface *anywhere in the same program*.
 
 # Installation
 
