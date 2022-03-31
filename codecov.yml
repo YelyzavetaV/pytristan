@@ -1,0 +1,8 @@
+codecov:
+  branch: main
+
+coverage:
+  status:
+    patch:
+      default:
+        informational: true
