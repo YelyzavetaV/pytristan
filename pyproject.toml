@@ -9,4 +9,6 @@ requires = [
     "setuptools>=42",
     "wheel"
 ]
-build-backend = "setuptools.build_meta"
+# Uncomment when the versioneer's problem with PEP517 is fixed.
+# https://github.com/python-versioneer/python-versioneer/issues/193
+# build-backend = "setuptools.build_meta"
