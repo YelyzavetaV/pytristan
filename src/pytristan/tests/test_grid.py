@@ -18,14 +18,18 @@ from pytristan import (
 )
 
 
-def test_cheb_raises():
-    with pytest.raises(TypeError):
-        cheb(10.0)
-    with pytest.raises(ValueError):
-        cheb(-10)
-    with pytest.raises(TypeError):  # Error if only one bound value is provided
-        cheb(10, 0.0)
-        cheb(10, xmax=2.0)
+@pytest.mark.parametrize(
+    "npts, xmin, xmax",
+    [
+        (10.0, None, None),
+        (-10, None, None),
+        (10, 0.0, None),
+        (10, None, 0.0),
+    ],
+)
+def test_cheb_invalid_args(npts, xmin, xmax):
+    with pytest.raises((ValueError, TypeError)):
+        cheb(npts, xmin, xmax)
 
 
 def test_cheb_pts():
@@ -37,25 +41,28 @@ def test_cheb_bounds():
     assert x[0] == 0.0 and x[-1] == 10.0
 
 
-def test_grid_from_bounds_raises():
-    with pytest.raises(ValueError):
-        Grid.from_bounds(0, (0.0, 1.0, 2.0))
-        Grid.from_bounds((0.0, 1.0), (0.0, 1.0))
-        Grid.from_bounds((-1, 1, 2), axes=[0])
-        Grid.from_bounds((-1, 1, 2), (-1, 1, 2), axes=[0, 0], mappers=[cheb, cheb])
-        Grid.from_bounds((-1, 1, 2), (-1, 1, 2), axes=[1, -1], mappers=[cheb, cheb])
-    with pytest.raises(TypeError):
-        Grid.from_bounds((-1, 1, 2), axes=0)
-        Grid.from_bounds((-1, 1, 2), axes=[0.0], mappers=[cheb])
-    with pytest.raises(IndexError):
-        Grid.from_bounds((-1, 1, 2), axes=[1], mappers=[cheb])
-        Grid.from_bounds((-1, 1, 2), axes=[-3], mappers=[cheb])
+@pytest.mark.parametrize(
+    "bounds, axes, mappers",
+    [
+        (([0.0, 1.0],), [], []),  # Bound must be an array-like containing 3 elements.
+        (([0.0, 1.0, 2.0],), [], []),  # Number of points must be an integer.
+        (([0.0, 1.0, 2.0],), [0], []),  # axes and mappers must be of the same size.
+        (([0.0, 1.0, 2.0],), [0.0], [cheb]),  # axes must be integers.
+        (([0.0, 1.0, 2.0],), [1], [cheb]),  # axis out of bounds.
+        (([0.0, 1.0, 2.0],), [-3], [cheb]),  # (Negative indexing) axis out of bounds.
+    ],
+)
+def test_grid_from_bounds_invalid_args(bounds, axes, mappers):
+    with pytest.raises((ValueError, TypeError, IndexError)):
+        Grid.from_bounds(*bounds, axes=axes, mappers=mappers)
 
 
-def test_grid_from_arrs_raises():
+def test_grid_from_arrs_invalid_args():
     # Error test (when coordinate array in wrong format).
     with pytest.raises(ValueError):
         Grid.from_arrs(np.arange(4).reshape(2, 2))
+
+    with pytest.raises(ValueError):
         Grid.from_arrs(1, 2, 3)
 
 
@@ -108,11 +115,15 @@ def test_grid_from_arrs():
 
 def test_grid_axpoints_raises():
     grid = Grid.from_bounds([0.0, 1.0, 2])
+
     with pytest.raises(TypeError):
-        grid.axpoints(0.0)
+        grid.axpoints(0.0)  # axis must be integer.
+
     with pytest.raises(IndexError):
-        grid.axpoints(1)
-        grid.axpoints(-2)
+        grid.axpoints(1)  # axis out of bounds.
+
+    with pytest.raises(IndexError):
+        grid.axpoints(-2)  # (Negative indexing) axis out of bounds.
 
 
 def test_grid_axpoints():
@@ -143,9 +154,10 @@ def test_get_grid_from_arrs():
 
 def test_get_grid_raises():
     with pytest.raises(TypeError):
-        get_grid(num=1.0)
+        get_grid(num=1.0)  # num must be integer.
+
     with pytest.raises(ValueError):
-        get_grid(num=1)
+        get_grid(num=1)  # Does not exist and no grid data provided.
 
 
 def test_get_grid_num():
@@ -194,17 +206,27 @@ def test_get_grid_polar_coords():
     drop_grid(nitem=3)
 
 
-def test_drop_grid_raises():
-    with pytest.raises(TypeError):
-        drop_grid(nitem=5.5)
-        drop_grid(num=[1.0, 0])
-    with pytest.raises(ValueError):
-        drop_grid(nitem=-1)
-        drop_grid(num=2, nitem=1)
-        drop_grid(num=[[0], [1]])
+@pytest.mark.parametrize(
+    "num, nitem",
+    [
+        (None, 1.0),  # nitem must be integer.
+        ([1.0, 0], 0),  # All nums must be integer.
+        (None, -1),  # nitem can't be negative.
+        (0, 1),  # Forbidden to supply num and nitem != 0 at the same time.
+        ([[0], [1]], 0),  # Wrong format of num.
+    ],
+)
+def test_drop_grid_invalid_args(num, nitem):
+    with pytest.raises((ValueError, TypeError)):
+        drop_grid(num, nitem)
+
+
+def test_drop_grid_warns():
     with pytest.warns(RuntimeWarning):
-        drop_grid()
-        drop_grid(num=10)
+        drop_grid()  # Do nothing?
+
+    with pytest.warns(RuntimeWarning):
+        drop_grid(num=10)  # Grid with such num does not exist.
 
 
 def test_drop_grid_num():
