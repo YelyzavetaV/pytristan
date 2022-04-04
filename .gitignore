@@ -8,3 +8,4 @@ __pycache__
 *-checkpoint.ipynb
 *-checkpoint.yaml
 src/*.egg-info
+pytristan.egg-info
