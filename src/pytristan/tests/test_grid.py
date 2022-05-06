@@ -256,3 +256,14 @@ def test_drop_all_grids():
     drop_all_grids()
 
     assert _get_grid_manager().nums() == []
+
+
+def test_connectivity():
+
+    grid = Grid.from_arrs(
+        np.linspace(-np.pi, np.pi - 2.0 * np.pi / 5, 5),
+        np.linspace(10, 11, 2),
+        np.linspace(0, 1, 2),
+    )
+
+    points, cells = grid.connectivity(grid)

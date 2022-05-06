@@ -319,6 +319,54 @@ class Grid(np.ndarray):
 
         self._num = number
 
+    def connectivity(self, axes=[]):
+
+        points = np.c_[self[0], self[1], self[2]]
+
+        # 3D connectivity support at this stage
+        nx, ny, nz = self.npts
+        ncells_x = nx - 1
+        ncells_y = ny - 1
+        ncells_z = nz - 1
+        ncells = ncells_x * ncells_y * ncells_z
+
+        my_cells_elements = np.empty((ncells, 8), dtype=int)
+
+        for k in range(0, ncells_z):
+            for j in range(0, ncells_y):
+                for i in range(0, ncells_x):
+                    node = i + nx * j + nx * ny * k
+                    cell = i + ncells_x * j + ncells_x * ncells_y * k
+                    my_cells_elements[cell] = [
+                        node,
+                        node + 1,
+                        node + 1 + nx,
+                        node + nx,
+                        node + nx * ny,
+                        node + nx * ny + 1,
+                        node + nx * (ny + 1) + 1,
+                        node + nx * (ny + 1),
+                    ]
+
+        # Reconnexion
+        for k in range(0, ncells_z):
+            for j in range(0, ncells_y):
+                node = nx * ny * k + nx * j
+                my_cells_element = [
+                    node,
+                    node + nx - 1,
+                    node + 2 * nx - 1,
+                    node + nx,
+                    node + nx * ny,
+                    node + nx - 1 + nx * ny,
+                    node + 2 * nx - 1 + nx * ny,
+                    node + nx + nx * ny,
+                ]
+
+                my_cells_elements = np.vstack((my_cells_elements, my_cells_element))
+
+        return points, my_cells_elements
+
 
 def _get_grid_manager(_grid_manager_instance=ObjectManager()):
     """Getter for the GridManager's one and only instance."""
