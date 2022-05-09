@@ -319,53 +319,56 @@ class Grid(np.ndarray):
 
         self._num = number
 
-    def connectivity(self, axes=[]):
+    def connectivity(self):
+        """Get connectivity for a N-dimensional grid."""
+        ncells = np.array(self.npts) - 1
+        # Construct flattened array of node indices evaluated as
+        # i1 + n1 * i2 + n1 * n2 * i3 + ... + n1 * ... * nN-1 * iN
+        # in the case of N-dimensional grid.
+        IJK = np.meshgrid(*[np.arange(n) for n in ncells], indexing="ij")
+        IJK = [(np.prod(self.npts[:i]) * I).flatten("F") for i, I in enumerate(IJK)]
+        ijk = np.tile(np.sum(IJK, axis=0), (2**self.num_dim, 1)).T
 
-        points = np.c_[self[0], self[1], self[2]]
+        # shift vector, when added to ijk, indicates relative position of connected
+        # nodes with respect to nodes in ijk. To construct shift for an N-dimensional
+        # grid, I first create a 2D array
+        # [[0 1],
+        #  [1 0],
+        #  [0 1],
+        #  [1 0],
+        #   ...
+        #  [0 1],
+        #  [1 0]]
+        # with 2 * (N - 1) rows. Then I add nx to each second row, nx * ny to each
+        # second block of two rows, nx * ny * nz to each second block of four rows etc.
+        shift = np.tile(np.array([0, 1]), (2 ** (self.num_dim - 1), 1))
+        shift[1::2] = shift[1::2, ::-1]
 
-        # 3D connectivity support at this stage
-        nx, ny, nz = self.npts
-        ncells_x = nx - 1
-        ncells_y = ny - 1
-        ncells_z = nz - 1
-        ncells = ncells_x * ncells_y * ncells_z
-
-        my_cells_elements = np.empty((ncells, 8), dtype=int)
-
-        for k in range(0, ncells_z):
-            for j in range(0, ncells_y):
-                for i in range(0, ncells_x):
-                    node = i + nx * j + nx * ny * k
-                    cell = i + ncells_x * j + ncells_x * ncells_y * k
-                    my_cells_elements[cell] = [
-                        node,
-                        node + 1,
-                        node + 1 + nx,
-                        node + nx,
-                        node + nx * ny,
-                        node + nx * ny + 1,
-                        node + nx * (ny + 1) + 1,
-                        node + nx * (ny + 1),
-                    ]
+        for k, i in enumerate(range(self.num_dim - 2, -1, -1)):
+            m = 2**i
+            idx = np.array(
+                [np.arange(m + n * 2 * m, m + n * 2 * m + m) for n in range(k + 1)]
+            ).flatten()
+            shift[idx] += np.prod(self.npts[-2 - k :: -1], dtype=int)
 
         # Reconnexion
-        for k in range(0, ncells_z):
-            for j in range(0, ncells_y):
-                node = nx * ny * k + nx * j
-                my_cells_element = [
-                    node,
-                    node + nx - 1,
-                    node + 2 * nx - 1,
-                    node + nx,
-                    node + nx * ny,
-                    node + nx - 1 + nx * ny,
-                    node + 2 * nx - 1 + nx * ny,
-                    node + nx + nx * ny,
-                ]
+        # for k in range(0, ncells_z):
+        #     for j in range(0, ncells_y):
+        #         node = nx * ny * k + nx * j
+        #         my_cells_element = [
+        #             node,
+        #             node + nx - 1,
+        #             node + 2 * nx - 1,
+        #             node + nx,
+        #             node + nx * ny,
+        #             node + nx - 1 + nx * ny,
+        #             node + 2 * nx - 1 + nx * ny,
+        #             node + nx + nx * ny,
+        #         ]
 
-                my_cells_elements = np.vstack((my_cells_elements, my_cells_element))
+        #         my_cells_elements = np.vstack((my_cells_elements, my_cells_element))
 
-        return points, my_cells_elements
+        return ijk + shift.flatten()
 
 
 def _get_grid_manager(_grid_manager_instance=ObjectManager()):
