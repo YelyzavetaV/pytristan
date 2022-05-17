@@ -322,34 +322,25 @@ class Grid(np.ndarray):
     def connectivity(self):
         """Get connectivity for a N-dimensional grid."""
         ncells = np.array(self.npts) - 1
-        # Construct flattened array of node indices evaluated as
-        # i1 + n1 * i2 + n1 * n2 * i3 + ... + n1 * ... * nN-1 * iN
-        # in the case of N-dimensional grid.
-        IJK = np.meshgrid(*[np.arange(n) for n in ncells], indexing="ij")
-        IJK = [(np.prod(self.npts[:i]) * I).flatten("F") for i, I in enumerate(IJK)]
-        ijk = np.tile(np.sum(IJK, axis=0), (2**self.num_dim, 1)).T
 
-        # shift vector, when added to ijk, indicates relative position of connected
-        # nodes with respect to nodes in ijk. To construct shift for an N-dimensional
-        # grid, I first create a 2D array
-        # [[0 1],
-        #  [1 0],
-        #  [0 1],
-        #  [1 0],
-        #   ...
-        #  [0 1],
-        #  [1 0]]
-        # with 2 * (N - 1) rows. Then I add nx to each second row, nx * ny to each
-        # second block of two rows, nx * ny * nz to each second block of four rows etc.
-        shift = np.tile(np.array([0, 1]), (2 ** (self.num_dim - 1), 1))
-        shift[1::2] = shift[1::2, ::-1]
+        # define the connectivity element (segment, quad, hexahedron, ...)
+        corners = np.array(
+            np.meshgrid(*np.tile(np.arange(2), (self.num_dim, 1)), indexing="ij")
+        )
+        # swap the order of nodes for vtk connectivity convention
+        if self.num_dim > 1:
+            corners[0, 0, 1] = 1
+            corners[0, 1, 1] = 0
 
-        for k, i in enumerate(range(self.num_dim - 2, -1, -1)):
-            m = 2**i
-            idx = np.array(
-                [np.arange(m + n * 2 * m, m + n * 2 * m + m) for n in range(k + 1)]
-            ).flatten()
-            shift[idx] += np.prod(self.npts[-2 - k :: -1], dtype=int)
+        # products of grid dimensions : (1, nx, nx * ny)
+        factors = np.array([np.prod(self.npts[:i]) for i in range(self.num_dim)])
+
+        # cells origins
+        ijk = np.array(np.meshgrid(*[np.arange(n) for n in ncells], indexing="ij"))
+        line = np.dot(ijk.T, factors).T.flatten('F')
+
+        # shifts along element directions
+        shift = np.dot(corners.T, factors).T.flatten('F')
 
         # Reconnexion
         # for k in range(0, ncells_z):
@@ -368,7 +359,7 @@ class Grid(np.ndarray):
 
         #         my_cells_elements = np.vstack((my_cells_elements, my_cells_element))
 
-        return ijk + shift.flatten()
+        return line[:, np.newaxis] + shift
 
 
 def _get_grid_manager(_grid_manager_instance=ObjectManager()):
