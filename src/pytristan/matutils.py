@@ -32,12 +32,13 @@ def nkron(*mats):
 
     mats = mats[::-1]
 
-    xyz = ascii_lowercase
     # Construct subscripts string for einsum, i.e. "ab,cd->acbd" for 2D grid,
     # "ab,cd,ef->acegbdfh" - for 3D grid etc.
-    subscripts = ",".join(xyz[i : i + 2] for i in range(0, ndim * 2, 2)) + "->"
+    subscripts = (
+        ",".join(ascii_lowercase[i : i + 2] for i in range(0, ndim * 2, 2)) + "->"
+    )
 
-    ranges = [xyz[i : i + 2] for i in range(0, ndim * 2, 2)]
+    ranges = [ascii_lowercase[i : i + 2] for i in range(0, ndim * 2, 2)]
     for ijk in zip(*ranges):
         subscripts = reduce(add, ijk, subscripts)
 
