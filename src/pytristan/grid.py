@@ -321,12 +321,9 @@ class Grid(np.ndarray):
 
     def connectivity(self):
         """Get connectivity for a N-dimensional grid."""
-        ncells = np.array(self.npts) - 1
 
         # define the connectivity element (segment, quad, hexahedron, ...)
-        corners = np.array(
-            np.meshgrid(*np.tile(np.arange(2), (self.num_dim, 1)), indexing="ij")
-        )
+        corners = np.indices(np.tile([2], self.num_dim))
         # swap the order of nodes for vtk connectivity convention
         if self.num_dim > 1:
             corners[0, 0, 1] = 1
@@ -336,7 +333,7 @@ class Grid(np.ndarray):
         factors = np.array([np.prod(self.npts[:i]) for i in range(self.num_dim)])
 
         # cells origins
-        ijk = np.array(np.meshgrid(*[np.arange(n) for n in ncells], indexing="ij"))
+        ijk = np.indices(np.array(self.npts) - 1)
         line = np.dot(ijk.T, factors).T.flatten('F')
 
         # shifts along element directions
@@ -360,6 +357,32 @@ class Grid(np.ndarray):
         #         my_cells_elements = np.vstack((my_cells_elements, my_cells_element))
 
         return line[:, np.newaxis] + shift
+
+    def connectivity2(self):
+        """Get connectivity for a N-dimensional grid."""
+
+        # define the connectivity element (segment, quad, hexahedron, ...)
+        corners = np.indices(np.tile([2], self.num_dim))
+        # swap the order of nodes for vtk connectivity convention
+        if self.num_dim > 1:
+            corners[0, 0, 1] = 1
+            corners[0, 1, 1] = 0
+
+        corners = corners.flatten('F').reshape(2**self.num_dim, self.num_dim)
+
+        # products of grid dimensions : (1, nx, nx * ny)
+        factors = np.array([np.prod(self.npts[:i]) for i in range(self.num_dim)])
+
+        # cells origins
+        ijk = np.indices(np.array(self.npts) - 1)
+        ijk = ijk.flatten('F').reshape(np.prod(ijk[0].shape), self.num_dim)
+
+        # elements
+        elements = ijk[:, np.newaxis] + corners[np.newaxis, :]
+
+        lines = np.sum(elements * factors, axis=2)
+
+        return lines
 
 
 def _get_grid_manager(_grid_manager_instance=ObjectManager()):
