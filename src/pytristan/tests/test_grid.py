@@ -258,12 +258,25 @@ def test_drop_all_grids():
     assert _get_grid_manager().nums() == []
 
 
-def test_connectivity():
+def test_grid_connectivity():
+    x = np.linspace(0, 1, 3)
+    y = np.linspace(0, 1, 3)
+    z = np.linspace(0, 1, 3)
+    grid = Grid.from_arrs(x, y, z)
 
-    grid = Grid.from_arrs(
-        np.linspace(-np.pi, np.pi - 2.0 * np.pi / 5, 5),
-        np.linspace(10, 11, 2),
-        np.linspace(0, 1, 2),
+    con = grid.connectivity()
+    assert_array_equal(
+        con,
+        np.array(
+            [
+                [0, 1, 4, 3, 9, 10, 13, 12],
+                [1, 2, 5, 4, 10, 11, 14, 13],
+                [3, 4, 7, 6, 12, 13, 16, 15],
+                [4, 5, 8, 7, 13, 14, 17, 16],
+                [9, 10, 13, 12, 18, 19, 22, 21],
+                [10, 11, 14, 13, 19, 20, 23, 22],
+                [12, 13, 16, 15, 21, 22, 25, 24],
+                [13, 14, 17, 16, 22, 23, 26, 25],
+            ]
+        ),
     )
-
-    points, cells = grid.connectivity(grid)

@@ -92,7 +92,7 @@ class Grid(np.ndarray):
         obj._num = None  # Unique identifier of the grid
 
         obj.num_dim = obj.shape[0]  # Number of grid dimensions
-        obj.npts = tuple(len(arr) for arr in arrs)
+        obj.npts = np.array([len(arr) for arr in arrs])
 
         return obj
 
@@ -320,52 +320,37 @@ class Grid(np.ndarray):
         self._num = number
 
     def connectivity(self, axes=[]):
+        """Get connectivity for a N-dimensional grid."""
 
-        points = np.c_[self[0], self[1], self[2]]
+        # define the connectivity element (segment, quad, hexahedron, ...)
+        corners = np.indices(np.tile([2], self.num_dim))
+        # swap the order of nodes for vtk connectivity convention
+        if self.num_dim > 1:
+            corners[0, 0, 1] = 1
+            corners[0, 1, 1] = 0
 
-        # 3D connectivity support at this stage
-        nx, ny, nz = self.npts
-        ncells_x = nx - 1
-        ncells_y = ny - 1
-        ncells_z = nz - 1
-        ncells = ncells_x * ncells_y * ncells_z
+        corners = corners.flatten('F').reshape(2**self.num_dim, self.num_dim)
 
-        my_cells_elements = np.empty((ncells, 8), dtype=int)
+        # products of grid dimensions : (1, nx, nx * ny)
+        factors = np.array([np.prod(self.npts[:i]) for i in range(self.num_dim)])
 
-        for k in range(0, ncells_z):
-            for j in range(0, ncells_y):
-                for i in range(0, ncells_x):
-                    node = i + nx * j + nx * ny * k
-                    cell = i + ncells_x * j + ncells_x * ncells_y * k
-                    my_cells_elements[cell] = [
-                        node,
-                        node + 1,
-                        node + 1 + nx,
-                        node + nx,
-                        node + nx * ny,
-                        node + nx * ny + 1,
-                        node + nx * (ny + 1) + 1,
-                        node + nx * (ny + 1),
-                    ]
+        # number of cells in each direction
+        dims = np.array(self.npts) - 1
+        # add ghost cells for periodic reconnexion along selected axes
+        dims[axes] += 1
 
-        # Reconnexion
-        for k in range(0, ncells_z):
-            for j in range(0, ncells_y):
-                node = nx * ny * k + nx * j
-                my_cells_element = [
-                    node,
-                    node + nx - 1,
-                    node + 2 * nx - 1,
-                    node + nx,
-                    node + nx * ny,
-                    node + nx - 1 + nx * ny,
-                    node + 2 * nx - 1 + nx * ny,
-                    node + nx + nx * ny,
-                ]
+        # cells origins
+        ijk = np.indices(dims)
+        ijk = ijk.flatten('F').reshape(np.prod(ijk[0].shape), self.num_dim)
 
-                my_cells_elements = np.vstack((my_cells_elements, my_cells_element))
+        # elements including optional reconnexion ghost elements
+        elements = ijk[:, np.newaxis] + corners[np.newaxis, :]
 
-        return points, my_cells_elements
+        # assign physical nodes to ghost nodes
+        elements[:, :, axes] = elements[:, :, axes] % self.npts[axes]
+
+        # return connectivity
+        return np.sum(elements * factors, axis=2)
 
 
 def _get_grid_manager(_grid_manager_instance=ObjectManager()):
