@@ -282,7 +282,7 @@ class Grid(np.ndarray):
     def mgrids(self):
         """Recover coordinate matrices of shape (n1, n2, n3,...).
 
-        Equivalent to the output of numpy.meshgrid(x, y, ..., indexing='ij'), where
+        Equivalent to the output of numpy.meshgrid(x, y, ..., indexing="ij"), where
         x, y, ... are the coordinate arrays.
 
         Returns
@@ -321,6 +321,14 @@ class Grid(np.ndarray):
 
     def connectivity(self, axes=[]):
         """Get connectivity for a N-dimensional grid."""
+        axes = np.asarray(axes)
+        if axes.size:
+            if not np.issubdtype(axes.dtype, np.integer):
+                raise TypeError("Axes' indices in `axes` must be integer numbers.")
+            # Convert negative indices to positive ones.
+            axes[axes < 0] = axes[axes < 0] + self.num_dim
+        else:
+            axes = axes.astype(int)
 
         # define the connectivity element (segment, quad, hexahedron, ...)
         corners = np.indices(np.tile([2], self.num_dim))
@@ -329,7 +337,7 @@ class Grid(np.ndarray):
             corners[0, 0, 1] = 1
             corners[0, 1, 1] = 0
 
-        corners = corners.flatten('F').reshape(2**self.num_dim, self.num_dim)
+        corners = corners.flatten("F").reshape(2**self.num_dim, self.num_dim)
 
         # products of grid dimensions : (1, nx, nx * ny)
         factors = np.array([np.prod(self.npts[:i]) for i in range(self.num_dim)])
@@ -337,11 +345,17 @@ class Grid(np.ndarray):
         # number of cells in each direction
         dims = np.array(self.npts) - 1
         # add ghost cells for periodic reconnexion along selected axes
-        dims[axes] += 1
+        try:
+            dims[axes] += 1
+        except IndexError as e:
+            raise ValueError(
+                f"Axis out of bounds in axes={axes} for the grid with {self.num_dim} "
+                f"dimension(s)."
+            ) from e
 
         # cells origins
         ijk = np.indices(dims)
-        ijk = ijk.flatten('F').reshape(np.prod(ijk[0].shape), self.num_dim)
+        ijk = ijk.flatten("F").reshape(np.prod(ijk[0].shape), self.num_dim)
 
         # elements including optional reconnexion ghost elements
         elements = ijk[:, np.newaxis] + corners[np.newaxis, :]
