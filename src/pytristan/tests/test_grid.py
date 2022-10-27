@@ -189,21 +189,15 @@ def test_get_grid_overwrite():
 
 def test_get_grid_polar_coords():
     grid1 = get_polar_grid(4, 6)
-
     assert_array_almost_equal(
         grid1.axpoints(0), np.arange(-np.pi, np.pi, 2 * np.pi / 4)
     )
-    assert_array_almost_equal(grid1.axpoints(1), np.linspace(0, 1, 6))
+    assert_array_almost_equal(grid1.axpoints(1), np.linspace(-1, 1, 12))
 
     grid2 = get_polar_grid(4, 6, axes=[1], mappers=[cheb])
+    assert_array_almost_equal(grid2.axpoints(1), cheb(12, -1.0, 1.0))
 
-    assert_array_almost_equal(grid2.axpoints(1), cheb(6, 0.0, 1.0))
-
-    grid3 = get_polar_grid(4, 6, fornberg=True, axes=[1], mappers=[cheb])
-
-    assert_array_almost_equal(grid3.axpoints(1), cheb(12, -1.0, 1.0))
-
-    drop_grid(nitem=3)
+    drop_grid(nitem=2)
 
 
 @pytest.mark.parametrize(
