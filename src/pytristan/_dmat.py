@@ -4,7 +4,7 @@ from typing import Union, Callable
 from operator import index
 import warnings
 import numpy as np
-from scipy.linalg import solve
+from scipy.linalg import solve, toeplitz
 from scipy.sparse import diags
 from scipy.fft import fft, ifft
 from functools import wraps
@@ -86,7 +86,7 @@ def chebyshev_matrix(x, order):
     return np.linalg.matrix_power(mat, order)
 
 
-def fourier_matrix(x, order):
+def _fourier_matrix(x, order):
     """Computes 1D Fourier differential matrix.
 
     References
@@ -114,6 +114,39 @@ def fourier_matrix(x, order):
         col **= order
 
     return ifft(col * fft(np.eye(nt))).T.real
+
+
+def fourier_matrix(x, order):
+    """Computes 1D Fourier differential matrix.
+
+    References
+    ----------
+    [1] L.N. Trefethen, "Spectral Methods in MATLAB". SIAM, Philadelphia, 2000.
+    """
+    nx = len(x)
+    dx = 2 * np.pi / nx
+    if order == 1:
+        if nx % 2 == 0:
+            col = np.hstack([0, 0.5 / np.tan(np.arange(1, nx) * 0.5 * dx)])
+        else:
+            raise NotImplementedError()
+        col[1::2] *= -1
+        row = col[[0, *np.arange(nx - 1, 0, -1)]]
+        return toeplitz(col, row)
+    elif order == 2:
+        if nx % 2 == 0:
+            col = np.hstack(
+                [
+                    np.pi**2 / 3 / dx**2 + 1 / 6,
+                    0.5 / np.sin(np.arange(1, nx) * 0.5 * dx) ** 2,
+                ]
+            )
+        else:
+            raise NotImplementedError()
+        col[::2] *= -1
+        return toeplitz(col)
+    else:
+        raise NotImplementedError()
 
 
 def custom_matrix(constructor):
