@@ -15,10 +15,9 @@ coordinate arrays are stored in a linearized order.
 """
 
 import inspect
-import warnings
 import operator
 import numpy as np
-from ._manager import ObjectManager
+from ._manager import ObjectManager, _drop_items
 
 __all__ = [
     "cheb",
@@ -79,7 +78,7 @@ def cheb(npts, xmin=None, xmax=None):
 
 
 class Grid(np.ndarray):
-    def __new__(cls, arrs):
+    def __new__(cls, arrs, *, geom="cart"):
         mgrids = np.meshgrid(*arrs, indexing="ij")
 
         # Linearize grid representation. Column-major order is adopted. Each coordinate
@@ -93,6 +92,7 @@ class Grid(np.ndarray):
 
         obj.num_dim = obj.shape[0]  # Number of grid dimensions
         obj.npts = tuple(len(arr) for arr in arrs)
+        obj.geom = geom
 
         return obj
 
@@ -107,12 +107,13 @@ class Grid(np.ndarray):
         # the attributes that are dependent on the ordering.
         self.num_dim = None
         self.npts = None
+        self.geom = getattr(obj, "geom", None)
 
     # TODO: add support of custom mappers with *args (and **kwargs).
     # TODO: generate axes when not provided (arange).
     # TODO: support for axes and mappers that are just integer and callable.
     @classmethod
-    def from_bounds(cls, *bounds, axes=[], mappers=[]):
+    def from_bounds(cls, *bounds, axes=[], mappers=[], geom="cart"):
         """Create a grid from axes bounds.
 
         Parameters
@@ -206,10 +207,10 @@ class Grid(np.ndarray):
             for ax, bound in enumerate(bounds)
         )
 
-        return cls(arrs)
+        return cls(arrs, geom=geom)
 
     @classmethod
-    def from_arrs(cls, *arrs):
+    def from_arrs(cls, *arrs, geom="cart"):
         """Create a grid from axes bounds.
 
         Parameters
@@ -232,7 +233,7 @@ class Grid(np.ndarray):
                     "Coordinate arrays must be one-dimensional array-like."
                 )
 
-        return cls(arrs)
+        return cls(arrs, geom=geom)
 
     def __repr__(self):
         if self._num is None:
@@ -282,7 +283,7 @@ class Grid(np.ndarray):
     def mgrids(self):
         """Recover coordinate matrices of shape (n1, n2, n3,...).
 
-        Equivalent to the output of numpy.meshgrid(x, y, ..., indexing='ij'), where
+        Equivalent to the output of numpy.meshgrid(x, y, ..., indexing="ij"), where
         x, y, ... are the coordinate arrays.
 
         Returns
@@ -319,13 +320,68 @@ class Grid(np.ndarray):
 
         self._num = number
 
+    def connectivity(self, axes=[]):
+        """Get connectivity for a N-dimensional grid."""
+        axes = np.asarray(axes)
+        if axes.size:
+            if not np.issubdtype(axes.dtype, np.integer):
+                raise TypeError("Axes' indices in `axes` must be integer numbers.")
+            # Convert negative indices to positive ones.
+            axes[axes < 0] = axes[axes < 0] + self.num_dim
+        else:
+            axes = axes.astype(int)
+
+        # define the connectivity element (segment, quad, hexahedron, ...)
+        corners = np.indices(np.tile([2], self.num_dim))
+        # swap the order of nodes for vtk connectivity convention
+        if self.num_dim > 1:
+            corners[0, 0, 1] = 1
+            corners[0, 1, 1] = 0
+
+        corners = corners.flatten("F").reshape(2**self.num_dim, self.num_dim)
+
+        # products of grid dimensions : (1, nx, nx * ny)
+        factors = np.array([np.prod(self.npts[:i]) for i in range(self.num_dim)])
+
+        # number of cells in each direction
+        dims = np.array(self.npts) - 1
+        # add ghost cells for periodic reconnexion along selected axes
+        try:
+            dims[axes] += 1
+        except IndexError as e:
+            raise ValueError(
+                f"Axis out of bounds in axes={axes} for the grid with {self.num_dim} "
+                f"dimension(s)."
+            ) from e
+
+        # cells origins
+        ijk = np.indices(dims)
+        ijk = ijk.flatten("F").reshape(np.prod(ijk[0].shape), self.num_dim)
+
+        # elements including optional reconnexion ghost elements
+        elements = ijk[:, np.newaxis] + corners[np.newaxis, :]
+
+        # assign physical nodes to ghost nodes
+        elements[:, :, axes] = elements[:, :, axes] % self.npts[axes]
+
+        # return connectivity
+        return np.sum(elements * factors, axis=2)
+
 
 def _get_grid_manager(_grid_manager_instance=ObjectManager()):
     """Getter for the GridManager's one and only instance."""
     return _grid_manager_instance
 
 
-def get_grid(*args, from_bounds=False, axes=[], mappers=[], num=None, overwrite=False):
+def get_grid(
+    *args,
+    from_bounds=False,
+    axes=[],
+    mappers=[],
+    geom="cart",
+    num=None,
+    overwrite=False,
+):
     """Get an existing grid or create a new one.
 
     Allows re-usage of the same instance of Grid during the run time using its unique
@@ -411,9 +467,10 @@ def get_grid(*args, from_bounds=False, axes=[], mappers=[], num=None, overwrite=
                 *args,
                 axes=axes,
                 mappers=mappers,
+                geom=geom,
             )
         else:
-            grid = Grid.from_arrs(*args)
+            grid = Grid.from_arrs(*args, geom=geom)
 
         grid.num = num
         setattr(grid_manager, str(num), grid)
@@ -421,7 +478,7 @@ def get_grid(*args, from_bounds=False, axes=[], mappers=[], num=None, overwrite=
     return grid
 
 
-def get_polar_grid(nt, nr, axes=[], mappers=[], fornberg=False, num=None):
+def get_polar_grid(nt, nr, axes=[], mappers=[], num=None):
     """Creates a 2D polar grid.
 
     Parameters
@@ -495,19 +552,14 @@ def get_polar_grid(nt, nr, axes=[], mappers=[], fornberg=False, num=None):
     [-1.         -0.95949297 -0.84125353 -0.65486073 -0.41541501 -0.14231484
       0.14231484  0.41541501  0.65486073  0.84125353  0.95949297  1.        ]
     """
-    if fornberg:
-        nr *= 2
-        rmin = -1.0
-    else:
-        rmin = 0.0
-
     return get_grid(
         (-np.pi, np.pi - 2.0 * np.pi / nt, nt),
-        (rmin, 1.0, nr),
+        (-1.0, 1.0, 2 * nr),
         from_bounds=True,
         num=num,
         axes=axes,
         mappers=mappers,
+        geom="polar",
     )
 
 
@@ -556,48 +608,8 @@ def drop_grid(num=None, nitem=0):
     >>> print(grid_manager.nums())
     []
     """
-    try:
-        nitem = operator.index(nitem)
-    except TypeError as e:
-        raise TypeError("Number of drop items nitem must be an integer.") from e
-    if nitem < 0:
-        raise ValueError("Number of drop items nitem must be a positive integer.")
-
     grid_manager = _get_grid_manager()
-    if num is None:
-        if not nitem:
-            warnings.warn(
-                "No grids were dropped because num is None and nitem=0.", RuntimeWarning
-            )
-            return  # To ensure "do-nothing" behaviour
-        nums = grid_manager.nums()
-        drops = nums[-1 : -nitem - 1 : -1]
-    else:
-        if nitem:
-            raise ValueError(
-                "Providing num different from None and nitem different from 0 at the "
-                "same time is ambiguous. To drop N last grid(s) from the manager AND "
-                "to drop grid(s) with particular identifier(s), you have to perform "
-                "two consecutive calls to drop_grid (see documentation)."
-            )
-        drops = np.asarray(num)
-        if not np.issubdtype(drops.dtype, np.integer):
-            raise TypeError("num must be an integer or an array-like of integers.")
-        if drops.ndim != 1:
-            if not drops.ndim:
-                drops = drops[np.newaxis]
-            else:
-                raise ValueError("num cannot have more that one dimension.")
-
-    for drop in drops:
-        try:
-            delattr(grid_manager, str(drop))
-        except AttributeError:
-            warnings.warn(
-                f"Grid with identifier {drop} could not be dropped as it's not "
-                f"registered in the manager.",
-                RuntimeWarning,
-            )
+    _drop_items(grid_manager, num, nitem)
 
 
 def drop_last_grid():
