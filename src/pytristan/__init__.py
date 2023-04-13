@@ -1,4 +1,5 @@
 from .grid import *
+from ._interp import *
 from .matutils import *
 from ._dmat import *
 

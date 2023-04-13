@@ -21,6 +21,7 @@ from ._manager import ObjectManager, _drop_items
 
 __all__ = [
     "cheb",
+    "cheb_bary_weights",
     "Grid",
     "_get_grid_manager",
     "get_grid",
@@ -75,6 +76,21 @@ def cheb(npts, xmin=None, xmax=None):
     if xmin is not None or xmax is not None:
         x = (1.0 - x) / 2.0 * (xmax - xmin) + xmin
     return x
+
+
+def cheb_bary_weights(x: np.ndarray):
+    """Barycentric weights for Chebyshev points.
+
+    Parameters
+    ----------
+    x: np.ndarray
+        Chebyshev points.
+    """
+    w = np.ones(x.size)
+    w[-1] = 0.5
+    w[-2::-2] *= -1
+    w[0] *= 0.5
+    return w
 
 
 class Grid(np.ndarray):
