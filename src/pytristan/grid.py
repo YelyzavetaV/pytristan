@@ -91,7 +91,7 @@ class Grid(np.ndarray):
         obj._num = None  # Unique identifier of the grid
 
         obj.num_dim = obj.shape[0]  # Number of grid dimensions
-        obj.npts = tuple(len(arr) for arr in arrs)
+        obj.npts = np.array([len(arr) for arr in arrs])
         obj.geom = geom
 
         return obj
@@ -201,7 +201,7 @@ class Grid(np.ndarray):
 
         mapdict = dict(zip(axes, mappers))
         arrs = tuple(
-            mapdict[ax](*((bound[2],) + bound[:2]))
+            mapdict[ax](bound[2], *np.hstack((bound[:2])))
             if ax in axes
             else np.linspace(*bound)
             for ax, bound in enumerate(bounds)
