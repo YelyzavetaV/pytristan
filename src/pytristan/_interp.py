@@ -57,8 +57,12 @@ def cheb_bary_interp(f: np.ndarray, x: np.ndarray, xnew: np.ndarray):
         Input data doesn't have to be defined at Chebyshev points but in this case the
         relevant node weights have to be provided.
     """
+    xnew = np.array(xnew)
+    if xnew.ndim == 0:
+        xnew = np.array([xnew])
+
     m, n = x.size, xnew.size
-    w = cheb_bary_weights(x)
+    w = cheb_bary_weights(m)
 
     xnew_m = np.tile(xnew, (m, 1))
     x_m = np.tile(x.reshape(m, 1), (1, n))

@@ -21,6 +21,7 @@ from ._manager import ObjectManager, _drop_items
 
 __all__ = [
     "cheb",
+    "clenshaw_curtis_weights",
     "cheb_bary_weights",
     "Grid",
     "_get_grid_manager",
@@ -78,15 +79,25 @@ def cheb(npts, xmin=None, xmax=None):
     return x
 
 
-def cheb_bary_weights(x: np.ndarray):
+def clenshaw_curtis_weights(nx: int) -> np.ndarray:
+    """Clenshaw-Curtis quadrature weights."""
+    c = 2 / np.hstack([1, 1 - np.arange(2, nx, 2) ** 2])
+    c = np.hstack([c, np.take(c, np.arange(np.floor(nx / 2) - 1, 0, -1, dtype=int))])
+
+    w = np.fft.ifft(c)
+    w[0] /= 2
+    return np.append(w, w[0]).real
+
+
+def cheb_bary_weights(nx: int) -> np.ndarray:
     """Barycentric weights for Chebyshev points.
 
     Parameters
     ----------
-    x: np.ndarray
-        Chebyshev points.
+    nx: int
+        Number of Chebyshev points.
     """
-    w = np.ones(x.size)
+    w = np.ones(nx)
     w[-1] = 0.5
     w[-2::-2] *= -1
     w[0] *= 0.5
